@@ -26,10 +26,10 @@ def main():
     if args.objects_images_folder is not None:
         objects = os.listdir(args.objects_images_folder)
         for object in objects:
-            object_predictions = agnostic_segmentation.find_object_mask(img, os.path.join(args.objects_images_folder,object), predictions)
-            agnostic_segmentation.draw_segmented_image(args.img, object_predictions)
+            object_instances = agnostic_segmentation.find_object_mask(img, os.path.join(args.objects_images_folder,object), predictions)
+            found_masks_img = agnostic_segmentation.draw_found_masks(img, object_instances, object)
 
-            cv2.imshow(object + '  masks', seg_img)
+            cv2.imshow(object + '  masks', found_masks_img)
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
