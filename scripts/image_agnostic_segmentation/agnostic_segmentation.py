@@ -51,6 +51,8 @@ def draw_segmented_image(img, predictions):
 def find_object_mask(img, object_images_path, predictions):
     object_images_paths = glob.glob(object_images_path+'/*')
 
+    features_per_mask = list()  # list of list of features per mask of features per object face
+
     orb = cv2.ORB_create()
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
@@ -65,15 +67,20 @@ def find_object_mask(img, object_images_path, predictions):
         masked_img = img.copy()
         masked_img[mask == False] = np.array([0, 0, 0])
 
+        masked_img = cv2.cvtColor(masked_img, cv2.COLOR_BGR2GRAY)
+
         cv2.imshow('Masked_image', masked_img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
         kp1 = orb.detect(masked_img, None)
-        kp1, des1 = orb.compute(img, kp1)
+        kp1, des1 = orb.compute(masked_img, kp1)
 
+        features_per_object_face = list()
         for image_path in object_images_paths:
             object_img = cv2.imread(image_path)
+
+            object_img = cv2.cvtColor(object_img, cv2.COLOR_BGR2GRAY)
 
             # find the keypoints and descriptors with ORB
             kp2 = orb.detect(object_img, None)
@@ -85,15 +92,21 @@ def find_object_mask(img, object_images_path, predictions):
             # Sort them in the order of their distance.
             matches = sorted(matches, key=lambda x: x.distance)
 
-            # Draw first 10 matches.
-            #img3 = cv2.drawMatches(img1, kp1, img2, kp2, matches[:10])
-            img_matches = np.empty((max(img.shape[0], object_img.shape[0]), img.shape[1] + object_img.shape[1], 3), dtype=np.uint8)
-            img3 = cv2.drawMatches(masked_img, kp1, object_img, kp2, matches[:40], img_matches,
-                           flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+            features_per_object_face.append(len(matches))
 
-            cv2.imshow('Good Matches', img3)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            # Draw first 40 matches.
+            #img_matches = np.empty((max(img.shape[0], object_img.shape[0]), img.shape[1] + object_img.shape[1], 3), dtype=np.uint8)
+            #img3 = cv2.drawMatches(masked_img, kp1, object_img, kp2, matches[:40], img_matches,
+            #               flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+
+            #cv2.imshow('Good Matches', img3)
+            #cv2.waitKey(0)
+            #cv2.destroyAllWindows()
+
+        features_per_mask.append(features_per_object_face)
+
+    print(features_per_mask)
+    print([np.sum(x) for x in features_per_mask])
 
 def draw_found_masks(img, object_predictions, object):
     MetadataCatalog.get("user_data").set(thing_classes=[object])
