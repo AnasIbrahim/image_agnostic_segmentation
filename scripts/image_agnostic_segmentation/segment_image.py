@@ -9,11 +9,18 @@ import agnostic_segmentation
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image-path", type=str, help="path to image", required=True)
-    parser.add_argument("--model-path", type=str, help="path to class-agnostic model", required=True)
-    parser.add_argument("--objects-images", type=str, help="path to object images to be segmented \
-                                                            ex: objects_folder/[book,shampoo,...]")
+    parser.add_argument("--image-path", type=str, help="path to image", default='../../demo/test_2.png')
+    parser.add_argument("--model-path", type=str, help="path to class-agnostic model",
+                        default='../../models/FAT_trained_Ml2R_bin_fine_tuned.pth')
+    parser.add_argument("--objects-images-folder", type=str,
+                        help="path to object images to be segmented, ex: objects_folder/[book,shampoo,...]",
+                        default='../../demo/objects')
     args = parser.parse_args()
+
+    # get absolute path
+    args.image_path = os.path.abspath(args.image_path)
+    args.model_path = os.path.abspath(args.model_path)
+    args.objects_images_folder = os.path.abspath(args.objects_images_folder)
 
     img = cv2.imread(args.image_path)
     predictions = agnostic_segmentation.segment_image(img, args.model_path)
