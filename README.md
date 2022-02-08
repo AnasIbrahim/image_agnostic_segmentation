@@ -5,10 +5,12 @@ if only few images of the objects are available
 
 ## inference results
 This is the result of using our CNN on [NVIDIA hope dataset](https://github.com/swtyree/hope-dataset).
-The dataset wasn't using during training neither any of its objects.
-![results of our CNN on NVIDIA hope dataset](images/8_segmented.png)
+The dataset wasn't used during training neither any of its objects.
+![results of our CNN on NVIDIA hope dataset](images/hope_dataset_segmented_example.png)
 
+Also this is an example of mask matching with the saved object images in [demo/objects]
 
+![results of mask matching](images/hope_dataset_mask_example.png)
 
 ## Python non-ROS driver
 To test the model directly without ROS
