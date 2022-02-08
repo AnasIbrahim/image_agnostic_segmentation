@@ -32,13 +32,19 @@ def main():
 
     if args.objects_images_folder is not None:
         objects = os.listdir(args.objects_images_folder)
-        for object in objects:
-            object_instances = agnostic_segmentation.find_object_mask(img, os.path.join(args.objects_images_folder,object), predictions)
-            found_masks_img = agnostic_segmentation.draw_found_masks(img, object_instances, object)
+        for obj in objects:
+            print('--------------------------------')
+            print('Searching for object: ', obj)
+            object_instances = agnostic_segmentation.find_object_mask(img, os.path.join(args.objects_images_folder,obj), predictions)
+            if len(object_instances) == 0:
+                print('No matches found for object: ', obj)
+            else:
+                print('Found ', str(len(object_instances)), ' matches for object ', obj)
+                found_masks_img = agnostic_segmentation.draw_found_masks(img, object_instances, obj)
 
-            cv2.imshow(object + '  masks', found_masks_img)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+                cv2.imshow(obj + '  masks', found_masks_img)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':

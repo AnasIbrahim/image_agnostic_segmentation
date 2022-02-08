@@ -47,6 +47,7 @@ def draw_segmented_image(img, predictions):
     
     return img
 
+
 def find_object_mask(img_original, object_images_path, predictions):
     object_images_paths = glob.glob(object_images_path+'/*')
 
@@ -114,9 +115,9 @@ def find_object_mask(img_original, object_images_path, predictions):
     return instances[mask_annotations]
 
 
-def draw_found_masks(img, object_instances, object):
-    MetadataCatalog.get(object+"_data").set(thing_classes=[object])
-    metadata = MetadataCatalog.get(object+"_data")
+def draw_found_masks(img, object_instances, obj):
+    MetadataCatalog.get(obj+"_data").set(thing_classes=[obj])
+    metadata = MetadataCatalog.get(obj+"_data")
     v = Visualizer(img,
                    metadata=metadata,
                    instance_mode=ColorMode.IMAGE
