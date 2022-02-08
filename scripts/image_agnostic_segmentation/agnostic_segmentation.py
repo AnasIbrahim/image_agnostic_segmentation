@@ -50,7 +50,7 @@ def draw_segmented_image(img, predictions):
 def find_object_mask(img_original, object_images_path, predictions):
     object_images_paths = glob.glob(object_images_path+'/*')
 
-    Threshold = 30
+    Threshold = 25
 
     sift = cv2.SIFT_create()
     bf = cv2.BFMatcher()
@@ -66,6 +66,7 @@ def find_object_mask(img_original, object_images_path, predictions):
         masked_img = img_original.copy()
         masked_img[mask == False] = np.array([0, 0, 0])
 
+        #cv2.namedWindow("Masked_image", cv2.WINDOW_NORMAL)
         #cv2.imshow('Masked_image', masked_img)
         #cv2.waitKey(0)
         #cv2.destroyAllWindows()
@@ -94,6 +95,7 @@ def find_object_mask(img_original, object_images_path, predictions):
 
             # Draw matches
             #img3 = cv2.drawMatchesKnn(masked_img, kp1, object_img, kp2, good_matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+            #cv2.namedWindow("Good Matches", cv2.WINDOW_NORMAL)
             #cv2.imshow('Good Matches', img3)
             #cv2.waitKey(0)
             #cv2.destroyAllWindows()
@@ -103,12 +105,12 @@ def find_object_mask(img_original, object_images_path, predictions):
 
             features_per_face.append(len(list_kp1))
 
-        print(features_per_face)
+        #print(features_per_face)
 
-        if np.max(features_per_face) > Threshold:
+        if np.sum(features_per_face) > Threshold:
             mask_annotations.append(i)
 
-    print(mask_annotations)
+    #print(mask_annotations)
     return instances[mask_annotations]
 
 

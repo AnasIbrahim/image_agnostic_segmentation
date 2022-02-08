@@ -9,7 +9,7 @@ import agnostic_segmentation
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image-path", type=str, help="path to image", default='../../demo/test_2.png')
+    parser.add_argument("--image-path", type=str, help="path to image", default='../../demo/test_1.png')
     parser.add_argument("--model-path", type=str, help="path to class-agnostic model",
                         default='../../models/FAT_trained_Ml2R_bin_fine_tuned.pth')
     parser.add_argument("--objects-images-folder", type=str,
