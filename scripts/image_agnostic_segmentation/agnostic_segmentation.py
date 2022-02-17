@@ -16,7 +16,7 @@ setup_logger()  # initialize the detectron2 logger and set its verbosity level t
 
 
 def segment_image(img, model_path):
-    confidence = 0.9
+    confidence = 0.7
 
     # --- detectron2 Config setup ---
     cfg = get_cfg()
