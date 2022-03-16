@@ -50,9 +50,11 @@ def compute_suction_points(rgb_img, depth_img, c_matrix, predictions):
         #plane_cloud.paint_uniform_color([1.0, 0, 0])
 
 
-        plane_cloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=100))
+        plane_cloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamRadius(0.02))
         #plane_cloud.orient_normals_towards_camera_location(camera_location=np.array([0., 0., 0.]))
-        plane_cloud.orient_normals_towards_camera_location(np.array([0,0,-1]))
+        #plane_cloud.orient_normals_towards_camera_location(np.array([0,0,1]))
+        #plane_cloud.orient_normals_consistent_tangent_plane(50)
+        plane_cloud.orient_normals_to_align_with_direction(orientation_reference=np.array([0.0, 0.0, -1.0]))
 
         #o = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2)
         #o3d.visualization.draw_geometries([o, plane_cloud])
@@ -63,7 +65,11 @@ def compute_suction_points(rgb_img, depth_img, c_matrix, predictions):
 
         point = np.asarray(plane_cloud.points)[idx[0], :]
         normal = np.asarray(plane_cloud.normals)[idx[0], :]
-        grasp_orientation = pose_from_vector3D(normal-point)
+        grasp_orientation = vector.pose_from_vector3D(point-normal)
+
+        # TODO remove temp
+        #grasp_position = np.array([0.032, 0.673, 0.646])
+        #grasp_orientation = np.array([-0.689, 0.698, -0.156, -0.116])
 
         # visualize to check grasp computation
         grasp_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.005, cone_radius=0.0075, cylinder_height=0.05, cone_height=0.02)
