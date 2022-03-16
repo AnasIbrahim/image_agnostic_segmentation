@@ -74,12 +74,13 @@ def compute_suction_points(rgb_img, depth_img, c_matrix, predictions):
         # visualize to check grasp computation
         grasp_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.005, cone_radius=0.0075, cylinder_height=0.05, cone_height=0.02)
         grasp_arrow.paint_uniform_color(np.array([1,0,0]))
+        grasp_arrow.translate((0,0,-0.03))
         grasp_arrow.rotate(o3d.geometry.get_rotation_matrix_from_xyz((0,np.pi/2,0)))
-        grasp_arrow.translate((0,0, -0.03))
+        grasp_arrow.rotate(o3d.geometry.get_rotation_matrix_from_xyz((0,0,np.pi)))
+        #grasp_arrow.translate((-0.03,0,0))
         rot_mat = o3d.geometry.get_rotation_matrix_from_quaternion(grasp_orientation)
         grasp_arrow.rotate(rot_mat)
         grasp_arrow.translate(grasp_position)
-        grasp_arrow.translate((0,0, -0.03))
         o = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2)
         #o3d.visualization.draw_geometries([o, plane_cloud, grasp_arrow])
 

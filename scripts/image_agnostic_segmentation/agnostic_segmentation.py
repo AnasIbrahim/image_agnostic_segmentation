@@ -36,7 +36,7 @@ def segment_image(img, model_path):
 
 
 def draw_segmented_image(img, predictions):
-    MetadataCatalog.get("user_data").set(thing_classes=["object"])
+    MetadataCatalog.get("user_data").set(thing_classes=[""])
     metadata = MetadataCatalog.get("user_data")
     v = Visualizer(img,
                    metadata=metadata,
