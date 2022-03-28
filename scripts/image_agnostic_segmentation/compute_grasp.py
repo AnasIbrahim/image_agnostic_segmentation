@@ -5,6 +5,7 @@ import copy
 
 from vector_quaternion import pose_from_vector3D
 
+
 def compute_suction_points(rgb_img, depth_img, c_matrix, predictions):
     # compute best suction point per mask
     instances = predictions["instances"].to("cpu")
@@ -65,23 +66,11 @@ def compute_suction_points(rgb_img, depth_img, c_matrix, predictions):
 
         point = np.asarray(plane_cloud.points)[idx[0], :]
         normal = np.asarray(plane_cloud.normals)[idx[0], :]
-        grasp_orientation = vector.pose_from_vector3D(point-normal)
-
-        # TODO remove temp
-        #grasp_position = np.array([0.032, 0.673, 0.646])
-        #grasp_orientation = np.array([-0.689, 0.698, -0.156, -0.116])
+        grasp_orientation = pose_from_vector3D(point-normal)
 
         # visualize to check grasp computation
-        grasp_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.005, cone_radius=0.0075, cylinder_height=0.05, cone_height=0.02)
-        grasp_arrow.paint_uniform_color(np.array([1,0,0]))
-        grasp_arrow.translate((0,0,-0.03))
-        grasp_arrow.rotate(o3d.geometry.get_rotation_matrix_from_xyz((0,np.pi/2,0)))
-        grasp_arrow.rotate(o3d.geometry.get_rotation_matrix_from_xyz((0,0,np.pi)))
-        #grasp_arrow.translate((-0.03,0,0))
-        rot_mat = o3d.geometry.get_rotation_matrix_from_quaternion(grasp_orientation)
-        grasp_arrow.rotate(rot_mat)
-        grasp_arrow.translate(grasp_position)
-        o = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2)
+        #grasp_arrow = make_grasp_arrow_cloud(grasp_position, grasp_orientation)
+        #o = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2)
         #o3d.visualization.draw_geometries([o, plane_cloud, grasp_arrow])
 
         suction_pts.append((tuple(grasp_position), tuple(grasp_orientation)))
@@ -96,15 +85,7 @@ def visualize_suction_points(rgb_img, c_matrix, suction_pts):
         grasp_orientation = np.array(point[1])
 
         # visualize to check grasp computation
-        grasp_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.005, cone_radius=0.0075, cylinder_height=0.05, cone_height=0.02)
-        grasp_arrow.paint_uniform_color(np.array([1,0,0]))
-        grasp_arrow.rotate(o3d.geometry.get_rotation_matrix_from_xyz((0,np.pi/2,0))) # align arrow with x axis
-        grasp_arrow.translate((0,0, -0.03))  # make arrow center at origin (half of arrow length)
-        rot_mat = o3d.geometry.get_rotation_matrix_from_quaternion(grasp_orientation)
-        grasp_arrow.rotate(rot_mat)
-        grasp_arrow.translate(grasp_position)
-        grasp_arrow.translate((0,0, -0.03))  # make tip of the arrow the point not its center
-        o = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2)
+        grasp_arrow = make_grasp_arrow_cloud(grasp_position, grasp_orientation)
 
         # project 3D grasp point on image
         arrow_cloud = grasp_arrow.sample_points_uniformly(number_of_points=50000)
@@ -123,3 +104,16 @@ def visualize_suction_points(rgb_img, c_matrix, suction_pts):
             pass
 
     return suction_pts_img
+
+def make_grasp_arrow_cloud(grasp_position, grasp_orientation):
+    grasp_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.005, cone_radius=0.0075,
+                                                         cylinder_height=0.05, cone_height=0.02)
+    grasp_arrow.paint_uniform_color(np.array([1, 0, 0]))
+    grasp_arrow.translate((0, 0, -0.03))
+    grasp_arrow.rotate(o3d.geometry.get_rotation_matrix_from_xyz((0, np.pi / 2, 0)))
+    grasp_arrow.rotate(o3d.geometry.get_rotation_matrix_from_xyz((0, 0, np.pi)))
+    # grasp_arrow.translate((-0.03,0,0))
+    rot_mat = o3d.geometry.get_rotation_matrix_from_quaternion(grasp_orientation)
+    grasp_arrow.rotate(rot_mat)
+    grasp_arrow.translate(grasp_position)
+    return grasp_arrow

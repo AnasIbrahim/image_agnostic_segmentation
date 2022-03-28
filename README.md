@@ -1,24 +1,27 @@
 # Image class-agnostic segmentation (Python code and ROS driver)
-This repository contains a pipeline that can segment any non-seen objects
-using our class-agnostic CNN. The code also can classify objects in the image
-if only few images of the objects are available
+This repository contains a pipeline that can segment and compute suction grasps of any non-seen objects
+using our category-agnostic CNN.
 
-## inference results
-This is the result of using our CNN on [NVIDIA hope dataset](https://github.com/swtyree/hope-dataset).
+
+## Example
+This is the result of running our CNN on [NVIDIA hope dataset](https://github.com/swtyree/hope-dataset).
 The dataset wasn't used during training neither any of its objects.
-![results of our CNN on NVIDIA hope dataset](images/hope_dataset_segmented_example.png)
+![results of our CNN on NVIDIA hope dataset](images/HOPE_dataset_example_segmented.png)
 
-Also this is an example of mask matching with the saved object images in [demo/objects]
+## installing dependencies
+Install pre-built detectron2 library from [here](https://detectron2.readthedocs.io/en/latest/tutorials/install.html).
+And install other dependencies with pip:
+```
+pip install open3d opencv-python argparse os-sys
+```
 
-![results of mask matching](images/hope_dataset_mask_example.png)
-
-## Python non-ROS driver
+## Python example
 To test the model directly without ROS
 ```
 git clone https://github.com/FLW-TUDO/image_agnostic_segmentation.git
 mkdir -p image_agnostic_segmentation/models
 cd image_agnostic_segmentation/models
-curl -J -O "https://tu-dortmund.sciebo.de/s/qfNQ2vLdCXW8RBS/FAT_trained_Ml2R_bin_fine_tuned.pth"
+wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O FAT_trained_Ml2R_bin_fine_tuned.pth
 cd ../scripts/image_agnostics_segmentation
 
 # to run the example
