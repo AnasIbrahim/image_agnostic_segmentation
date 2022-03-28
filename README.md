@@ -25,8 +25,14 @@ wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O FAT_trained_Ml
 cd ../scripts/image_agnostics_segmentation
 
 # to run the example
-python3 scripts/image_agnostic_segmentation/segment_image.py
+python segment_image.py
 
-# To test your own images
-python3 scripts/image_agnostic_segmentation/segment_image.py --image-path IMAGE_PATH
+# To test segmentation only with RGB images
+python segment_image.py --compute-no-suction-pts --rgb-image-path RGB_IMAGE_PATH
+
+# To segment an image and compute grasps
+python segment_image.py --compute-suction-pts --rgb-image-path RGB_IMAGE_PATH --depth-image-path DEPTH_IMAGE_PATH --depth-scale DEPTH_SCALE -c-matrix FX 0.0 CX 0.0 FY CY 0.0 0.0 1.0
 ```
+
+The examples shows the following scene:
+![grasp computation](images/grasp.gif)
