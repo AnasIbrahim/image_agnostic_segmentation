@@ -12,7 +12,7 @@ The dataset wasn't used during training neither any of its objects.
 Install pre-built detectron2 library from [here](https://detectron2.readthedocs.io/en/latest/tutorials/install.html).
 And install other dependencies with pip:
 ```
-pip install open3d opencv-python argparse os-sys
+pip install open3d opencv-python argparse
 ```
 
 ## Python example
@@ -36,3 +36,11 @@ python segment_image.py --compute-suction-pts --rgb-image-path RGB_IMAGE_PATH --
 
 The examples shows the following scene:
 ![grasp computation](images/grasp.gif)
+
+
+## DoPose Dataset
+This CNN model is trained with our Dopose data.
+The dataset can be downloaded [here](https://zenodo.org/record/6103779).
+The dataset is saved in the [BOP format](https://github.com/thodan/bop_toolkit/blob/master/docs/bop_datasets_format.md).
+It includes multi-view of storage bin (KLT Euro container) and tabletop scenes.
+The annotations include RGB and depth images, 6D pose of each object, segmentation masks, COCO json annotations. Also the dataset includes camera transformations between different views of the same scene (this is extra non-standard to BOP format).

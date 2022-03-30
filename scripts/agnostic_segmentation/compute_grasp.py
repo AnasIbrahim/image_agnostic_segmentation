@@ -3,7 +3,7 @@ import open3d as o3d
 import cv2
 import copy
 
-from vector_quaternion import pose_from_vector3D
+from .vector_quaternion import pose_from_vector3D
 
 
 def compute_suction_points(rgb_img, depth_img, c_matrix, predictions):
