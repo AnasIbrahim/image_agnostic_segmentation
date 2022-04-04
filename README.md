@@ -22,7 +22,7 @@ git clone https://github.com/FLW-TUDO/image_agnostic_segmentation.git
 mkdir -p image_agnostic_segmentation/models
 cd image_agnostic_segmentation/models
 wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O FAT_trained_Ml2R_bin_fine_tuned.pth
-cd ../scripts/image_agnostics_segmentation
+cd ../scripts
 
 # to run the example
 python segment_image.py

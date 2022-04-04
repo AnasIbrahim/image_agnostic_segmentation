@@ -3,13 +3,20 @@
 import rospy
 import sys
 import numpy as np
+import os
+
+import rospkg
 
 from cv_bridge import CvBridge
 bridge = CvBridge()
 
 from image_agnostic_segmentation.srv import SegmentImage, SegmentImageResponse
 
-sys.path.insert(0, '../../../../scripts/')
+rospack = rospkg.RosPack()
+rospack.list()
+lib_path = rospack.get_path('image_agnostic_segmentation')
+lib_path = os.path.join(lib_path, '../scripts')
+sys.path.insert(0, lib_path)
 from agnostic_segmentation import agnostic_segmentation
 from agnostic_segmentation import compute_grasp
 
