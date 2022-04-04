@@ -5,12 +5,10 @@ import copy
 
 from .vector_quaternion import pose_from_vector3D
 
-
-def compute_suction_points(rgb_img, depth_img, c_matrix, predictions):
-    # compute best suction point per mask
+def make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, predictions):
     instances = predictions["instances"].to("cpu")
 
-    suction_pts = list()
+    point_clouds = list()
     for i in range(len(instances)):
         pred_masks = instances.pred_masks[i].cpu().detach().numpy()
 
@@ -38,10 +36,23 @@ def compute_suction_points(rgb_img, depth_img, c_matrix, predictions):
 
         # convert image to point cloud
         intrinsic = o3d.camera.PinholeCameraIntrinsic(rgb_img.shape[0], rgb_img.shape[1],
-                                                      c_matrix[0,0], c_matrix[1,1], c_matrix[0,2], c_matrix[1,2])
+                                                      c_matrix[0, 0], c_matrix[1, 1], c_matrix[0, 2], c_matrix[1, 2])
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(masked_rgb_img, masked_depth_img,
                                                                   depth_scale=1, convert_rgb_to_intensity=False)
         pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsic)
+
+        point_clouds.append(pcd)
+
+    return point_clouds
+
+
+def compute_suction_points(predictions, objects_point_clouds):
+    # compute best suction point per mask
+    instances = predictions["instances"].to("cpu")
+
+    suction_pts = list()
+    for i in range(len(instances)):
+        pcd = objects_point_clouds[i]
 
         #o3d.visualization.draw_geometries([pcd])
 
@@ -106,6 +117,7 @@ def visualize_suction_points(rgb_img, c_matrix, suction_pts):
     return suction_pts_img
 
 def make_grasp_arrow_cloud(grasp_position, grasp_orientation):
+    # TODO arrow is too small in new open3D release - make size 10X#
     grasp_arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.005, cone_radius=0.0075,
                                                          cylinder_height=0.05, cone_height=0.02)
     grasp_arrow.paint_uniform_color(np.array([1, 0, 0]))

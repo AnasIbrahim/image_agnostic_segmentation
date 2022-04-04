@@ -10,6 +10,7 @@ project(image_agnostic_segmentation)
 find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   geometry_msgs
+  ros_numpy
   message_generation
 )
 

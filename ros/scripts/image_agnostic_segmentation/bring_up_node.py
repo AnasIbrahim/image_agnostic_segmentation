@@ -4,8 +4,11 @@ import rospy
 import sys
 import numpy as np
 import os
+import open3d as o3d
 
 import rospkg
+import ros_numpy
+from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import PoseStamped
 
 from cv_bridge import CvBridge
@@ -44,7 +47,8 @@ def handle_segment_image(req):
     seg_pub.publish(seg_img_msg)
     rospy.loginfo("Published segmented image.")
 
-    suction_pts = compute_grasp.compute_suction_points(rgb_img, depth_img, c_matrix, predictions)
+    objects_clouds = compute_grasp.make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, predictions)
+    suction_pts = compute_grasp.compute_suction_points(predictions, objects_clouds)
     suction_pts_image = compute_grasp.visualize_suction_points(seg_img, c_matrix, suction_pts)
     suction_pts_image_msg = bridge.cv2_to_imgmsg(suction_pts_image, encoding="rgb8")
     grasp_pub.publish(suction_pts_image_msg)
@@ -66,10 +70,12 @@ def handle_segment_image(req):
         objects_pixels.append(object_pixels)
         #color = list(np.random.choice(range(256), size=3))
         #masks_image[mask == True] = color
+        point_clouds.append(objects_clouds[i])
         grasps.append(make_grasp_msg(suction_pts[i]))
     response.objects_pixels = np.array(objects_pixels)
     response.grasps = np.array(grasps)
 
+    rospy.loginfo("Service finished.")
     return response
 
 
@@ -86,6 +92,29 @@ def make_grasp_msg(pt):
     msg.pose.orientation.w = pt[1][3]
 
     return msg
+
+def o3d_to_pc_msg(o3d_cloud):
+    pcd = o3d.geometry.PointCloud()
+    npoints = len(np.asarray(pcd.points))
+    points_arr = np.zeros((npoints,), dtype=[
+        ('x', np.float32),
+        ('y', np.float32),
+        ('z', np.float32),
+        ('r', np.uint8),
+        ('g', np.uint8),
+        ('b', np.uint8)])
+    point_xyz = np.asarray(pcd.points)
+    points_arr['x'] = point_xyz[:0]
+    points_arr['y'] = point_xyz[:0]
+    points_arr['z'] = point_xyz[:0]
+    points_rgb = np.asarray(pcd.colors)
+    points_arr['r'] = points_rgb[:0]
+    points_arr['r'] = points_rgb[:1]
+    points_arr['r'] = points_rgb[:2]
+
+    cloud_msg = ros_numpy.msgify(PointCloud2, points_arr)
+
+    return cloud_msg
 
 
 def main():

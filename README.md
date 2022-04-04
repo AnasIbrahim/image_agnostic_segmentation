@@ -9,12 +9,17 @@ The dataset wasn't used during training neither any of its objects.
 ![results of our CNN on NVIDIA hope dataset](images/HOPE_dataset_example_segmented.png)
 
 ## installing dependencies
-Install pre-built detectron2 library from [here](https://detectron2.readthedocs.io/en/latest/tutorials/install.html).
-And install other dependencies with pip:
+First, install detectron2 library from [here](https://detectron2.readthedocs.io/en/latest/tutorials/install.html).
+
+Second, install other dependencies with pip:
 ```
 pip install open3d opencv-python argparse
 ```
 
+Third, install other required ros packages
+```
+sudo apt install ros-"$ROS_DISTRO"-ros-numpy
+```
 ## Python example
 To test the model directly without ROS
 ```
