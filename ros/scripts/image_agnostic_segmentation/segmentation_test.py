@@ -1,20 +1,28 @@
 #!/usr/bin/env python
 
 import sys
+import os
 
 import cv2
 import rospy
 
+import rospkg
 from cv_bridge import CvBridge
 bridge = CvBridge()
 
 from image_agnostic_segmentation.srv import SegmentImage, SegmentImageRequest
 
+rospack = rospkg.RosPack()
+rospack.list()
+pkg_path = rospack.get_path('image_agnostic_segmentation')
+
 def main():
+    rospy.init_node('image_agnostic_segmentation_test')
+
     req = SegmentImageRequest()
-    rgb_img = '/home/gouda/segmentation/data_collection_ws/src/image_agnostic_segmentation/demo/rgb_images/000000.png'
+    rgb_img = os.path.join(pkg_path, '../demo/rgb_images/000000.png')
     req.rgb_image = bridge.cv2_to_imgmsg(cv2.imread(rgb_img))
-    depth_img = '/home/gouda/segmentation/data_collection_ws/src/image_agnostic_segmentation/demo/depth_images/000000.png'
+    depth_img = os.path.join(pkg_path, '../demo/depth_images/000000.png')
     req.depth_image = bridge.cv2_to_imgmsg(cv2.imread(depth_img))
     req.cam_K_matrix = [1390.53, 0.0, 964.957, 0.0, 1386.99, 522.586, 0.0, 0.0, 1.0]
     

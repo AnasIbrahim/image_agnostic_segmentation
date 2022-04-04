@@ -2,6 +2,6 @@ sensor_msgs/Image rgb_image
 sensor_msgs/Image depth_image
 float64[9]  cam_K_matrix
 ---
+image_agnostic_segmentation/ImagePixels[] objects_pixels
 sensor_msgs/PointCloud2[] objects_clouds
-geometry_msgs/Pose[] grasps
-image_agnostic_segmentation/ImagePixels objects_pixels
+geometry_msgs/PoseStamped[] grasps
