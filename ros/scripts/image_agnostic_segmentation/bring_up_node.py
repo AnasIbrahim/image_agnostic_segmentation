@@ -9,7 +9,7 @@ import open3d as o3d
 import rospkg
 import ros_numpy
 from sensor_msgs.msg import PointCloud2
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseArray, Pose
 
 from cv_bridge import CvBridge
 bridge = CvBridge()
@@ -70,32 +70,38 @@ def handle_segment_image(req):
         objects_pixels.append(object_pixels)
         #color = list(np.random.choice(range(256), size=3))
         #masks_image[mask == True] = color
-        point_clouds.append(objects_clouds[i])
-        grasps.append(make_grasp_msg(suction_pts[i]))
+        point_clouds.append(o3d_to_pc_msg(objects_clouds[i]))
+        grasps.append(suction_pts[i])
+    response.grasps = make_grasp_msg(grasps)
     response.objects_pixels = np.array(objects_pixels)
-    response.grasps = np.array(grasps)
+    response.objects_clouds = np.array(point_clouds)
 
     rospy.loginfo("Service finished.")
     return response
 
 
-def make_grasp_msg(pt):
-    msg = PoseStamped()
+def make_grasp_msg(grasps):
+    msg = PoseArray()
     msg.header.stamp = rospy.Time.now()
     msg.header.frame_id = 'camera_optical_frame' # TODO change to ROS Param
-    msg.pose.position.x = pt[0][0]
-    msg.pose.position.y = pt[0][1]
-    msg.pose.position.z = pt[0][2]
-    msg.pose.orientation.x = pt[1][0]
-    msg.pose.orientation.y = pt[1][1]
-    msg.pose.orientation.z = pt[1][2]
-    msg.pose.orientation.w = pt[1][3]
+    grasp_msgs = list()
+    for grasp in grasps:
+        pt = Pose()
+        pt.position.x = grasp[0][0]
+        pt.position.y = grasp[0][1]
+        pt.position.z = grasp[0][2]
+        pt.orientation.x = grasp[1][0]
+        pt.orientation.y = grasp[1][1]
+        pt.orientation.z = grasp[1][2]
+        pt.orientation.w = grasp[1][3]
+        grasp_msgs.append(pt)
+
+    msg.poses = np.array(grasp_msgs)
 
     return msg
 
 def o3d_to_pc_msg(o3d_cloud):
-    pcd = o3d.geometry.PointCloud()
-    npoints = len(np.asarray(pcd.points))
+    npoints = len(np.asarray(o3d_cloud.points))
     points_arr = np.zeros((npoints,), dtype=[
         ('x', np.float32),
         ('y', np.float32),
@@ -103,14 +109,14 @@ def o3d_to_pc_msg(o3d_cloud):
         ('r', np.uint8),
         ('g', np.uint8),
         ('b', np.uint8)])
-    point_xyz = np.asarray(pcd.points)
-    points_arr['x'] = point_xyz[:0]
-    points_arr['y'] = point_xyz[:0]
-    points_arr['z'] = point_xyz[:0]
-    points_rgb = np.asarray(pcd.colors)
-    points_arr['r'] = points_rgb[:0]
-    points_arr['r'] = points_rgb[:1]
-    points_arr['r'] = points_rgb[:2]
+    point_xyz = np.asarray(o3d_cloud.points)
+    points_arr['x'] = point_xyz[:,0]
+    points_arr['y'] = point_xyz[:,1]
+    points_arr['z'] = point_xyz[:,2]
+    points_rgb = np.asarray(o3d_cloud.colors)
+    points_arr['r'] = points_rgb[:,0]
+    points_arr['g'] = points_rgb[:,1]
+    points_arr['b'] = points_rgb[:,2]
 
     cloud_msg = ros_numpy.msgify(PointCloud2, points_arr)
 
