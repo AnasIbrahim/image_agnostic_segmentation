@@ -29,8 +29,10 @@ from agnostic_segmentation import compute_grasp
 def handle_segment_image(req):
     rospy.loginfo("Segmentation service called.")
 
-    seg_pub = rospy.Publisher('segmented_image', Image, queue_size=10)
-    grasp_pub = rospy.Publisher('grasp_image', Image, queue_size=10)
+    seg_img_pub = rospy.Publisher('segmented_image', Image, queue_size=10)
+    grasp_img_pub = rospy.Publisher('grasp_image', Image, queue_size=10)
+
+    grasp_poses_pub = rospy.Publisher('grasp_poses', PoseArray, queue_size=10)
 
     response = SegmentImageResponse()
     
@@ -44,14 +46,14 @@ def handle_segment_image(req):
     predictions = agnostic_segmentation.segment_image(rgb_img, model_path)
     seg_img = agnostic_segmentation.draw_segmented_image(rgb_img, predictions)
     seg_img_msg = bridge.cv2_to_imgmsg(seg_img, encoding="rgb8")
-    seg_pub.publish(seg_img_msg)
+    seg_img_pub.publish(seg_img_msg)
     rospy.loginfo("Published segmented image.")
 
     objects_clouds = compute_grasp.make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, predictions)
     suction_pts = compute_grasp.compute_suction_points(predictions, objects_clouds)
     suction_pts_image = compute_grasp.visualize_suction_points(seg_img, c_matrix, suction_pts)
     suction_pts_image_msg = bridge.cv2_to_imgmsg(suction_pts_image, encoding="rgb8")
-    grasp_pub.publish(suction_pts_image_msg)
+    grasp_img_pub.publish(suction_pts_image_msg)
 
     rospy.loginfo("Published grasp image.")
 
@@ -72,9 +74,12 @@ def handle_segment_image(req):
         #masks_image[mask == True] = color
         point_clouds.append(o3d_to_pc_msg(objects_clouds[i]))
         grasps.append(suction_pts[i])
-    response.grasps = make_grasp_msg(grasps)
+
+    grasp_poses_pub.publish(make_grasp_msg(grasps))
+
     response.objects_pixels = np.array(objects_pixels)
     response.objects_clouds = np.array(point_clouds)
+    response.grasps = make_grasp_msg(grasps)
 
     rospy.loginfo("Service finished.")
     return response

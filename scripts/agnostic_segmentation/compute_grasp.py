@@ -18,7 +18,6 @@ def make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, predictions):
         masked_rgb_img[pred_masks == False] = np.array([0, 0, 0])
 
         masked_depth_img = depth_img.copy()
-        masked_depth_img = masked_depth_img.astype(float)
         masked_depth_img[pred_masks == False] = 0
         masked_depth_img = np.float32(masked_depth_img)
 
