@@ -2,6 +2,7 @@
 This repository contains a pipeline that can segment and compute suction grasps of any non-seen objects
 using our category-agnostic CNN.
 
+![robot grasping](images/grasping.gif)
 
 ## Example
 This is the result of running our CNN on [NVIDIA hope dataset](https://github.com/swtyree/hope-dataset).
@@ -42,6 +43,25 @@ python segment_image.py --compute-suction-pts --rgb-image-path RGB_IMAGE_PATH --
 The examples shows the following scene:
 ![grasp computation](images/grasp.gif)
 
+## ROS
+To install the ROS driver:
+```
+mkdir -p catkin_ws/src
+cd catkin_ws/
+catkin init
+cd src/
+git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
+cd ..
+catkin build
+echo "$(pwd)/devel/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+```
+To run ROS example:
+```
+roslaunch image_agnostic_segmentation test_example.launch
+```
+Then wait till the segmentation image then grasping image appears (~10 second)
+
 
 ## DoPose Dataset
 This CNN model is trained with our Dopose data.
@@ -49,3 +69,6 @@ The dataset can be downloaded [here](https://zenodo.org/record/6103779).
 The dataset is saved in the [BOP format](https://github.com/thodan/bop_toolkit/blob/master/docs/bop_datasets_format.md).
 It includes multi-view of storage bin (KLT Euro container) and tabletop scenes.
 The annotations include RGB and depth images, 6D pose of each object, segmentation masks, COCO json annotations. Also the dataset includes camera transformations between different views of the same scene (this is extra non-standard to BOP format).
+
+Samples from the dataset:
+![DoPose dataset sample](images/dataset_sample.png)

@@ -2,4 +2,5 @@
     <node name="segmentation_bring_up_node" pkg="image_agnostic_segmentation" type="bring_up_node.py" />
     <node name="segmentation_test_node" pkg="image_agnostic_segmentation" type="segmentation_test.py" />
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find image_agnostic_segmentation)/rviz/scene.rviz"/>
+    <node pkg="tf" type="static_transform_publisher" name="camera_transform_publisher" args="0 0 1 0 0 -3.14 /world_frame /camera_optical_frame 50"/>
 </launch>
