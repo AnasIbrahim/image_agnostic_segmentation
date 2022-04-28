@@ -51,9 +51,11 @@ cd catkin_ws/
 catkin init
 cd src/
 git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
-cd ..
+mkdir image_agnostic_segmentation/models; cd image_agnostic_segmentation/models
+wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O FAT_trained_Ml2R_bin_fine_tuned.pth
+cd ../../..
 catkin build
-echo "$(pwd)/devel/setup.bash" >> ~/.bashrc
+echo "source $(pwd)/devel/setup.bash" >> ~/.bashrc
 source ~/.bashrc
 ```
 To run ROS example:
