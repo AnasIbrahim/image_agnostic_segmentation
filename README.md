@@ -24,7 +24,7 @@ sudo apt install ros-"$ROS_DISTRO"-ros-numpy
 ## Python example
 To test the model directly without ROS
 ```
-git clone https://github.com/FLW-TUDO/image_agnostic_segmentation.git
+git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
 mkdir -p image_agnostic_segmentation/models
 cd image_agnostic_segmentation/models
 wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O FAT_trained_Ml2R_bin_fine_tuned.pth
