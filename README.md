@@ -1,5 +1,5 @@
-# Image class-agnostic segmentation (Python code and ROS driver)
-This repository contains a pipeline that can segment and compute suction grasps of any non-seen objects
+# Unseen object segmentation (Python code and ROS driver)
+This repository contains a pipeline that can segment and compute suction grasps for unseen objects
 using our category-agnostic CNN.
 
 ![robot grasping](images/grasping.gif)
@@ -74,3 +74,16 @@ The annotations include RGB and depth images, 6D pose of each object, segmentati
 
 Samples from the dataset:
 ![DoPose dataset sample](images/dataset_sample.png)
+
+# Paper and Citation
+To understand how the CNN model in this repository was trained or how the Dopose dataset was created please refer to [our preprint on Arxiv](https://arxiv.org/abs/2204.13613)
+```
+@misc{gouda2022categoryagnostic,
+      title={Category-agnostic Segmentation for Robotic Grasping}, 
+      author={Anas Gouda and Abraham Ghanem and Christopher Reining},
+      year={2022},
+      eprint={2204.13613},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO}
+}
+```
