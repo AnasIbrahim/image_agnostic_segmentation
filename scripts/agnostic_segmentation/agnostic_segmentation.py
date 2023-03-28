@@ -1,7 +1,11 @@
 import glob
-
+import os
 import numpy as np
 import cv2
+from PIL import Image
+
+import torchvision
+from torchvision import transforms
 
 from detectron2.utils.logger import setup_logger
 from detectron2 import model_zoo
@@ -10,6 +14,10 @@ from detectron2.config import get_cfg
 from detectron2.data import MetadataCatalog
 from detectron2.utils.visualizer import Visualizer
 from detectron2.utils.visualizer import ColorMode
+from detectron2.evaluation import coco_evaluation
+
+from pycocotools.coco import COCO
+from pycocotools.coco import maskUtils
 
 
 setup_logger()  # initialize the detectron2 logger and set its verbosity level to “DEBUG”.
@@ -44,85 +52,58 @@ def draw_segmented_image(img, predictions):
                    )
     out = v.draw_instance_predictions(predictions["instances"].to("cpu"))
     img = out.get_image()
-    
+
     return img
 
 
-def find_object_mask(img_original, object_images_path, predictions):
-    object_images_paths = glob.glob(object_images_path+'/*')
+class DoUnseen:
+    def __init__(self, gallery_path, method='vit'):
+    # TODO Save gallery features as a file that can be reloaded
+        if method == 'vit':
+            self.model_backbone = torchvision.models.vit_b_16()
+        elif method == 'siamese':
+            raise NotImplementedError("Not Implemented")
+            #self.siamese_model = siamese()
+            #self.model_backbone = siamese_model.backbone
 
-    Threshold = 25
+        self.feed_shape = [3, 224, 224]
+        self.transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            transforms.Resize(self.feed_shape[1:])
+        ])
 
-    sift = cv2.SIFT_create()
-    bf = cv2.BFMatcher()
+        self.update_gallery(gallery_path)
 
-    instances = predictions["instances"].to("cpu")
+    def update_gallery(self, gallery_path):
+        # Extract gallery images
+        self.gallery_feats = {}
+        obj_list = os.listdir(gallery_path)
+        for obj_num, obj_path in enumerate(obj_list):
+            obj_images = [self.transform(Image.open(path).convert("RGB")) for path in glob.glob(os.path.join(gallery_path, obj_path, '*'))]
+            self.gallery_feats_[obj_list[obj_num]] = obj_images
 
-    mask_annotations = list()
+    def find_object(self, img_original, predictions):
+        query_feats = self.extract_query_feats(img_original, predictions)
+        return object_prediction
 
-    for i in range(len(instances)):
-        # TODO should bounding boxex be used instead of masks
-        instance = instances[i]
-        mask = instance.pred_masks.cpu().detach().numpy()[0]
-        masked_img = img_original.copy()
-        masked_img[mask == False] = np.array([0, 0, 0])
+    def classify_all_objects(self, rgb_img, predictions):
+        query_feats = self.extract_query_feats(rgb_img, predictions)
+        return classified_predictions
 
-        #cv2.namedWindow("Masked_image", cv2.WINDOW_NORMAL)
-        #cv2.imshow('Masked_image', masked_img)
-        #cv2.waitKey(0)
-        #cv2.destroyAllWindows()
-
-        masked_img = cv2.cvtColor(masked_img, cv2.COLOR_BGR2GRAY)
-
-        kp1, des1 = sift.detectAndCompute(masked_img, None)
-
-        features_per_face = list()
-        for image_path in object_images_paths:
-            object_img = cv2.imread(image_path)
-            object_img = cv2.cvtColor(object_img, cv2.COLOR_BGR2GRAY)
-
-
-            kp2, des2 = sift.detectAndCompute(object_img, None)
-
-            matches = bf.knnMatch(des1, des2, k=2)
-
-            good_matches = []
-            for m, n in matches:
-                if m.distance < 0.6 * n.distance:
-                    good_matches.append([m])
-
-            good_matches = sorted([item[0] for item in good_matches], key=lambda x: x.distance)
-            good_matches = [[item] for item in good_matches]
-
-            # Draw matches
-            #img3 = cv2.drawMatchesKnn(masked_img, kp1, object_img, kp2, good_matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-            #cv2.namedWindow("Good Matches", cv2.WINDOW_NORMAL)
-            #cv2.imshow('Good Matches', img3)
+    def extract_query_feats(self, rgb_img, predictions):
+        query_images_feats = []
+        instances = predictions['instances'].to('cpu')
+        for idx in range(len(instances)):
+            bbox = instances[idx].pred_boxes.tensor.squeeze().numpy()
+            mask = instances[idx].pred_masks.squeeze().numpy().astype(np.uint8)
+            masked_rgb = cv2.bitwise_or(rgb_img, rgb_img, mask=mask)
+            bbox = [int(val) for val in bbox]
+            obj_cropped_mask = masked_rgb[bbox[1]:bbox[3], bbox[0]:bbox[2]]
+            #cv2.imshow('image', obj_cropped_mask)
             #cv2.waitKey(0)
             #cv2.destroyAllWindows()
+            query_images_feats.append(self.transform(cv2.cvtColor(obj_cropped_mask, cv2.COLOR_BGR2RGB)))
 
-            list_kp1 = [kp1[mat[0].queryIdx].pt for mat in good_matches]
-            #list_kp1 = [(int(element[0]), int(element[1])) for element in list_kp1]
-
-            features_per_face.append(len(list_kp1))
-
-        #print(features_per_face)
-
-        if np.sum(features_per_face) > Threshold:
-            mask_annotations.append(i)
-
-    #print(mask_annotations)
-    return instances[mask_annotations]
-
-
-def draw_found_masks(img, object_instances, obj):
-    MetadataCatalog.get(obj+"_data").set(thing_classes=[obj])
-    metadata = MetadataCatalog.get(obj+"_data")
-    v = Visualizer(img,
-                   metadata=metadata,
-                   instance_mode=ColorMode.IMAGE
-                   )
-    out = v.draw_instance_predictions(object_instances)
-    img = out.get_image()
-
-    return img
+    def draw_found_masks(img, roi, mask):
+        return img

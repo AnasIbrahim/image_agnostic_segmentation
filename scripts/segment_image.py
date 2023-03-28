@@ -21,6 +21,10 @@ def main():
     parser.add_argument('-c-matrix', nargs='+',
                         help='camera matrix to convert depth image to point cloud',
                         default=['1390.53', '0.0', '964.957', '0.0', '1386.99', '522.586', '0.0', '0.0', '1.0']) # HOPE dataset - example images
+    parser.add_argument('--detect-all-objects', dest='detect_all_objects', action='store_true')
+    parser.set_defaults(detect_all_objects=False)
+    parser.add_argument('--detect-one-object', type=str, help='name of object (folder) to be detected', default='obj_000016')
+    parser.add_argument('--gallery_path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
     args = parser.parse_args()
 
     # get absolute path
@@ -50,6 +54,13 @@ def main():
         cv2.imshow('suction points', suction_pts_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+    if args.detect_all_objects:
+        zero_shot_classifier = agnostic_segmentation.DoUnseen(args.gallery_path, method='vit')
+        predictions = zero_shot_classifier.classify_all_objects(rgb_img, predictions)
+    elif args.detect_one_object:
+        zero_shot_classifier = agnostic_segmentation.DoUnseen(args.gallery_path, method='vit')
+        predictions = zero_shot_classifier.find_object(rgb_img, predictions)
+
 
 
 if __name__ == '__main__':
