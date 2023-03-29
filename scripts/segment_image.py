@@ -22,7 +22,7 @@ def main():
                         help='camera matrix to convert depth image to point cloud',
                         default=['1390.53', '0.0', '964.957', '0.0', '1386.99', '522.586', '0.0', '0.0', '1.0']) # HOPE dataset - example images
     parser.add_argument('--detect-all-objects', dest='detect_all_objects', action='store_true')
-    parser.set_defaults(detect_all_objects=False)
+    parser.set_defaults(detect_all_objects=True)
     parser.add_argument('--detect-one-object', type=str, help='name of object (folder) to be detected', default='obj_000016')
     parser.add_argument('--gallery_path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
     args = parser.parse_args()
@@ -38,8 +38,8 @@ def main():
         c_matrix = np.array(c_matrix).reshape((3, 3))
 
     rgb_img = cv2.imread(args.rgb_image_path)
-    predictions = agnostic_segmentation.segment_image(rgb_img, args.model_path)
-    seg_img = agnostic_segmentation.draw_segmented_image(rgb_img, predictions)
+    seg_predictions = agnostic_segmentation.segment_image(rgb_img, args.model_path)
+    seg_img = agnostic_segmentation.draw_segmented_image(rgb_img, seg_predictions)
 
     cv2.imshow('segmented_image', seg_img)
     cv2.waitKey(0)
@@ -56,10 +56,16 @@ def main():
         cv2.destroyAllWindows()
     if args.detect_all_objects:
         zero_shot_classifier = agnostic_segmentation.DoUnseen(args.gallery_path, method='vit')
-        predictions = zero_shot_classifier.classify_all_objects(rgb_img, predictions)
+        class_predictions = zero_shot_classifier.classify_all_objects(rgb_img, seg_predictions)
+        classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_path))
     elif args.detect_one_object:
         zero_shot_classifier = agnostic_segmentation.DoUnseen(args.gallery_path, method='vit')
-        predictions = zero_shot_classifier.find_object(rgb_img, predictions)
+        class_predictions = zero_shot_classifier.find_object(rgb_img, seg_predictions)
+        classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_path))
+
+    cv2.imshow('classified_image', classified_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 

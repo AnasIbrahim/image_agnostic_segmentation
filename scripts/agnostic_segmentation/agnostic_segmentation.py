@@ -1,7 +1,9 @@
+import copy
 import glob
 import os
 import numpy as np
 import cv2
+import torch
 from PIL import Image
 
 import torchvision
@@ -43,9 +45,13 @@ def segment_image(img, model_path):
     return predictions
 
 
-def draw_segmented_image(img, predictions):
-    MetadataCatalog.get("user_data").set(thing_classes=[""])
-    metadata = MetadataCatalog.get("user_data")
+def draw_segmented_image(img, predictions, classes=None):
+    if classes == None:
+        MetadataCatalog.get("unseen_seg").set(thing_classes=[''])
+        metadata = MetadataCatalog.get("unseen_seg")
+    else:
+        MetadataCatalog.get("classified").set(thing_classes=classes)
+        metadata = MetadataCatalog.get("classified")
     v = Visualizer(img,
                    metadata=metadata,
                    instance_mode=ColorMode.IMAGE
@@ -60,7 +66,7 @@ class DoUnseen:
     def __init__(self, gallery_path, method='vit'):
     # TODO Save gallery features as a file that can be reloaded
         if method == 'vit':
-            self.model_backbone = torchvision.models.vit_b_16()
+            self.model_backbone = torchvision.models.vit_b_16(weights='DEFAULT')
         elif method == 'siamese':
             raise NotImplementedError("Not Implemented")
             #self.siamese_model = siamese()
@@ -70,27 +76,44 @@ class DoUnseen:
         self.transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            transforms.Resize(self.feed_shape[1:])
+            transforms.Resize(self.feed_shape[1:], antialias=True)
         ])
 
         self.update_gallery(gallery_path)
 
+    @torch.no_grad()
     def update_gallery(self, gallery_path):
         # Extract gallery images
         self.gallery_feats = {}
         obj_list = os.listdir(gallery_path)
         for obj_num, obj_path in enumerate(obj_list):
             obj_images = [self.transform(Image.open(path).convert("RGB")) for path in glob.glob(os.path.join(gallery_path, obj_path, '*'))]
-            self.gallery_feats_[obj_list[obj_num]] = obj_images
+            obj_images = torch.stack(obj_images)
+            obj_feats = [self.model_backbone(obj_images)]  # TODO use bigger batch size to save time
+            self.gallery_feats[obj_list[obj_num]] = torch.stack(obj_feats).squeeze(dim=0)
 
     def find_object(self, img_original, predictions):
         query_feats = self.extract_query_feats(img_original, predictions)
         return object_prediction
 
     def classify_all_objects(self, rgb_img, predictions):
+        classified_predictions = copy.deepcopy(predictions)
+        pred_classes = []
         query_feats = self.extract_query_feats(rgb_img, predictions)
+        for query_id, query_feat in enumerate(query_feats):
+            obj_dists = []
+            for obj_num, obj_name in enumerate(self.gallery_feats.keys()):
+                obj_feats = self.gallery_feats[obj_name]
+                dists = torch.cosine_similarity(query_feat, obj_feats, dim=1)
+                obj_dists.append(np.array(dists))
+            obj_dists = [max(obj) for obj in obj_dists]  # TODO check for a threshold where the object is not in query
+            pred_class = obj_dists.index(max(obj_dists))
+            pred_classes.append(pred_class)
+        classified_predictions['instances'].pred_classes = torch.tensor(pred_classes)
+
         return classified_predictions
 
+    @torch.no_grad()
     def extract_query_feats(self, rgb_img, predictions):
         query_images_feats = []
         instances = predictions['instances'].to('cpu')
@@ -103,7 +126,11 @@ class DoUnseen:
             #cv2.imshow('image', obj_cropped_mask)
             #cv2.waitKey(0)
             #cv2.destroyAllWindows()
-            query_images_feats.append(self.transform(cv2.cvtColor(obj_cropped_mask, cv2.COLOR_BGR2RGB)))
+            query_img = self.transform(cv2.cvtColor(obj_cropped_mask, cv2.COLOR_BGR2RGB))
+            query_img = torch.unsqueeze(query_img, dim=0)
+            feat = self.model_backbone(query_img)
+            query_images_feats.append(feat)
+        return query_images_feats
 
     def draw_found_masks(img, roi, mask):
         return img
