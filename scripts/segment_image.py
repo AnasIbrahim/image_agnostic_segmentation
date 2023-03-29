@@ -41,31 +41,39 @@ def main():
     seg_predictions = agnostic_segmentation.segment_image(rgb_img, args.model_path)
     seg_img = agnostic_segmentation.draw_segmented_image(rgb_img, seg_predictions)
 
-    cv2.imshow('segmented_image', seg_img)
+    cv2.imshow('Unseen object segmentation', seg_img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-    # show suction points for all objects
-    if args.compute_suction_pts:
-        objects_point_clouds = compute_grasp.make_predicted_objects_clouds(rgb_img, depth_image, c_matrix, predictions)
-        suction_pts = compute_grasp.compute_suction_points(predictions, objects_point_clouds)
-        suction_pts_image = compute_grasp.visualize_suction_points(seg_img, c_matrix, suction_pts)
-
-        cv2.imshow('suction points', suction_pts_image)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
     if args.detect_all_objects:
         zero_shot_classifier = agnostic_segmentation.DoUnseen(args.gallery_path, method='vit')
         class_predictions = zero_shot_classifier.classify_all_objects(rgb_img, seg_predictions)
         classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_path))
-    elif args.detect_one_object:
-        zero_shot_classifier = agnostic_segmentation.DoUnseen(args.gallery_path, method='vit')
-        class_predictions = zero_shot_classifier.find_object(rgb_img, seg_predictions)
-        classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_path))
 
-    cv2.imshow('classified_image', classified_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+        cv2.imshow('Classify all objects from gallery', classified_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    if args.detect_one_object:
+        obj_name = args.detect_one_object
+        zero_shot_classifier = agnostic_segmentation.DoUnseen(args.gallery_path, method='vit')
+        class_predictions = zero_shot_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name)
+        classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=[obj_name])
+
+        cv2.imshow('Find a specific object', classified_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    # show suction points for all objects
+    if args.compute_suction_pts:
+        objects_point_clouds = compute_grasp.make_predicted_objects_clouds(rgb_img, depth_image, c_matrix, seg_predictions)
+        suction_pts = compute_grasp.compute_suction_points(seg_predictions, objects_point_clouds)
+        suction_pts_image = compute_grasp.visualize_suction_points(seg_img, c_matrix, suction_pts)
+
+        cv2.imshow('Suction points for all objects', suction_pts_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
 
 
 

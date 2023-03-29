@@ -46,12 +46,10 @@ def segment_image(img, model_path):
 
 
 def draw_segmented_image(img, predictions, classes=None):
-    if classes == None:
-        MetadataCatalog.get("unseen_seg").set(thing_classes=[''])
-        metadata = MetadataCatalog.get("unseen_seg")
-    else:
-        MetadataCatalog.get("classified").set(thing_classes=classes)
-        metadata = MetadataCatalog.get("classified")
+    if 'dounseen' in [x for x in MetadataCatalog]:
+        MetadataCatalog.remove('dounseen')
+    MetadataCatalog.get('dounseen').set(thing_classes=classes)
+    metadata = MetadataCatalog.get('dounseen')
     v = Visualizer(img,
                    metadata=metadata,
                    instance_mode=ColorMode.IMAGE
@@ -92,9 +90,19 @@ class DoUnseen:
             obj_feats = [self.model_backbone(obj_images)]  # TODO use bigger batch size to save time
             self.gallery_feats[obj_list[obj_num]] = torch.stack(obj_feats).squeeze(dim=0)
 
-    def find_object(self, img_original, predictions):
-        query_feats = self.extract_query_feats(img_original, predictions)
-        return object_prediction
+    def find_object(self, rgb_img, predictions, obj_name):
+        query_feats = self.extract_query_feats(rgb_img, predictions)
+        obj_feats = self.gallery_feats[obj_name]
+        obj_dists = []
+        for query_id, query_feat in enumerate(query_feats):
+            dists = torch.cosine_similarity(query_feat, obj_feats, dim=1)
+            obj_dists.append(np.array(dists))
+        obj_dists = [max(obj) for obj in obj_dists]
+        matched_query = obj_dists.index(max(obj_dists))  # TODO: change method to find several occurrences
+        obj_predictions = copy.deepcopy(predictions)
+        obj_predictions['instances'] = obj_predictions['instances'][matched_query]
+
+        return obj_predictions
 
     def classify_all_objects(self, rgb_img, predictions):
         classified_predictions = copy.deepcopy(predictions)
