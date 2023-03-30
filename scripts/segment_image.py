@@ -13,21 +13,25 @@ def main():
     parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='../demo/rgb_images/000000.png')
     parser.add_argument("--segmentation-model-path", type=str, help="path to unseen object segmentation model",
                         default='../models/unseen_object_segmentation.pth')
+
+    parser.add_argument('--classification-method', type=str, help="method to use for classification 'vit' or 'siamese'", default='vit')
+    parser.add_argument("--siamese-model-path", type=str, help="path to siamese classification model",
+                        default='../models/classification_siamese_net.pth')
+    parser.add_argument('--detect-all-objects', dest='detect_all_objects', action='store_true')
+    parser.set_defaults(detect_all_objects=False)
+    parser.add_argument('--detect-one-object', dest='detect_one_object', action='store_true')
+    parser.set_defaults(detect_one_object=False)
+    parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected', default='obj_000016')
+    parser.add_argument('--gallery_path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
+
     parser.add_argument('--compute-suction-pts', dest='compute_suction_pts', action='store_true')
-    parser.add_argument('--compute-no-suction-pts', dest='compute_suction_pts', action='store_false')
-    parser.set_defaults(compute_suction_pts=True)
+    parser.set_defaults(compute_suction_pts=False)
     parser.add_argument("--depth-image-path", type=str, help="path to depth image", default='../demo/depth_images/000000.png')
     parser.add_argument("--depth-scale", type=int, help="depth image in divided by the scale", default=1000)  # convert from mm to meter - this is done due to depth images being saves in BOP format
     parser.add_argument('-c-matrix', nargs='+',
                         help='camera matrix to convert depth image to point cloud',
                         default=['1390.53', '0.0', '964.957', '0.0', '1386.99', '522.586', '0.0', '0.0', '1.0']) # HOPE dataset - example images
-    parser.add_argument('--classification-method', type=str, help="method to use for classification 'vit' or 'siamese'", default='vit')
-    parser.add_argument("--siamese-model-path", type=str, help="path to siamese classification model",
-                        default='../models/classification_siamese_net.pth')
-    parser.add_argument('--detect-all-objects', dest='detect_all_objects', action='store_true')
-    parser.set_defaults(detect_all_objects=True)
-    parser.add_argument('--detect-one-object', type=str, help='name of object (folder) to be detected', default='obj_000016')
-    parser.add_argument('--gallery_path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
+
     args = parser.parse_args()
 
     # get absolute path
@@ -61,7 +65,7 @@ def main():
         cv2.destroyAllWindows()
 
     if args.detect_one_object:
-        obj_name = args.detect_one_object
+        obj_name = args.object_name
         zero_shot_classifier = agnostic_segmentation.DoUnseen(args.gallery_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
         class_predictions = zero_shot_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name)
         classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=[obj_name])

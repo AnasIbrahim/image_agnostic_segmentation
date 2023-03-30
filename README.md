@@ -14,17 +14,12 @@ The 3 main features of the library:
 
 They can be use separately or cascaded.
 
-## Example
-This is the result of running our unseen object segmentation model on [NVIDIA hope dataset](https://github.com/swtyree/hope-dataset).
-The dataset wasn't used during training neither any of its objects.
-![results of our CNN on NVIDIA hope dataset](images/HOPE_dataset_example_segmented.png)
-
 ## installing dependencies
 First, install detectron2 library from [here](https://detectron2.readthedocs.io/en/latest/tutorials/install.html).
 
 Second, install other dependencies with pip:
 ```
-pip install open3d opencv-python argparse
+pip install open3d opencv-python argparse torch torchvision
 ```
 
 Third, install other required ros packages
@@ -38,19 +33,27 @@ git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
 mkdir -p image_agnostic_segmentation/models
 cd image_agnostic_segmentation/models
 wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O unseen_object_segmentation.pth
+wget https://tu-dortmund.sciebo.de/s/yhmj8xblrKiuBLr/download -O classification_siamese_net.pth
 cd ../scripts
 
-# to run the example
-python segment_image.py
+# to run the example that run. The examples runs:
+# 1- unseen object segmentation
+# 2- classify all objects
+# 3- find a specific object
+# 4- calculate suction grasp for all objects
+python segment_image.py --compute-suction-pts --detect-all-objects --detect-one-object
 
-# To test segmentation only with RGB images
-python segment_image.py --compute-no-suction-pts --rgb-image-path RGB_IMAGE_PATH
+# To run the unseen object segmentation only with RGB images
+python segment_image.py --rgb-image-path RGB_IMAGE_PATH
 
-# To detect a specific object from RGB images with a pre-taken image of the object
-python segment_image.py --compute-no-suction-pts --rgb-image-path RGB_IMAGE_PATH --classify-obj obj_000016
+# To detect a specific object from RGB images from a gallery 
+python segment_image.py --rgb-image-path RGB_IMAGE_PATH --detect-one-object --object-name OBJECT_NAME --gallery_path GALLERY_PATH
+
+# To detect all objects from RGB images with a pre-taken image of the object
+python segment_image.py --rgb-image-path RGB_IMAGE_PATH --detect-all-objects --gallery_path GALLERY_PATH
 
 # To segment an image and compute grasps
-python segment_image.py --compute-suction-pts --rgb-image-path RGB_IMAGE_PATH --depth-image-path DEPTH_IMAGE_PATH --depth-scale DEPTH_SCALE -c-matrix FX 0.0 CX 0.0 FY CY 0.0 0.0 1.0
+python segment_image.py --rgb-image-path RGB_IMAGE_PATH --depth-image-path DEPTH_IMAGE_PATH --depth-scale DEPTH_SCALE -c-matrix FX 0.0 CX 0.0 FY CY 0.0 0.0 1.0 --compute-suction-pts
 ```
 
 The examples shows the following scene:
@@ -65,7 +68,7 @@ catkin init
 cd src/
 git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
 mkdir image_agnostic_segmentation/models; cd image_agnostic_segmentation/models
-wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O FAT_trained_Ml2R_bin_fine_tuned.pth
+wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O unseen_object_segmentation.pth
 cd ../../..
 catkin build
 echo "source $(pwd)/devel/setup.bash" >> ~/.bashrc
