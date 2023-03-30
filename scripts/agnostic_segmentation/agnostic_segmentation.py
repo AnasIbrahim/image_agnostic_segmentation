@@ -110,10 +110,10 @@ class DoUnseen:
             obj_images = torch.stack(obj_images)
             # TODO use bigger batch size to save time
             if self.method == 'vit':
-                obj_feats = [self.model_backbone(obj_images)]
+                obj_feats = self.model_backbone(obj_images)
             elif self.method == 'siamese':
                 obj_feats = [self.siamese_model.extract_gallery_feats(obj_images)]
-            self.gallery_feats[obj_list[obj_num]] = torch.stack(obj_feats).squeeze(dim=0)
+            self.gallery_feats[obj_list[obj_num]] = obj_feats
 
     def find_object(self, rgb_img, predictions, obj_name):
         query_feats = self.extract_query_feats(rgb_img, predictions)
@@ -154,7 +154,7 @@ class DoUnseen:
 
     @torch.no_grad()
     def extract_query_feats(self, rgb_img, predictions):
-        query_images_feats = []
+        query_images = []
         instances = predictions['instances'].to('cpu')
         for idx in range(len(instances)):
             bbox = instances[idx].pred_boxes.tensor.squeeze().numpy()
@@ -166,13 +166,14 @@ class DoUnseen:
             #cv2.waitKey(0)
             #cv2.destroyAllWindows()
             query_img = self.transform(cv2.cvtColor(obj_cropped_mask, cv2.COLOR_BGR2RGB))
-            query_img = torch.unsqueeze(query_img, dim=0)
-            if self.method == 'vit':
-                feat = self.model_backbone(query_img)
-            elif self.method == 'siamese':
-                feat = self.siamese_model.extract_query_feats(query_img)
-            query_images_feats.append(feat)
-        return query_images_feats
+            query_images.append(query_img)
+        query_images = torch.stack(query_images)
+        if self.method == 'vit':
+            feat = self.model_backbone(query_images)
+        elif self.method == 'siamese':
+            feat = self.siamese_model.extract_query_feats(query_images)
+        #query_img = torch.unsqueeze(query_img, dim=0)
+        return feat
 
     def draw_found_masks(img, roi, mask):
         return img

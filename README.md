@@ -69,6 +69,7 @@ cd src/
 git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
 mkdir image_agnostic_segmentation/models; cd image_agnostic_segmentation/models
 wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O unseen_object_segmentation.pth
+wget https://tu-dortmund.sciebo.de/s/yhmj8xblrKiuBLr/download -O classification_siamese_net.pth
 cd ../../..
 catkin build
 echo "source $(pwd)/devel/setup.bash" >> ~/.bashrc
