@@ -37,7 +37,7 @@ To test the model directly without ROS
 git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
 mkdir -p image_agnostic_segmentation/models
 cd image_agnostic_segmentation/models
-wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O FAT_trained_Ml2R_bin_fine_tuned.pth
+wget https://tu-dortmund.sciebo.de/s/ISdLcDMduHeW1ay/download  -O unseen_object_segmentation.pth
 cd ../scripts
 
 # to run the example
