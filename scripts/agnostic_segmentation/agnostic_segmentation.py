@@ -9,6 +9,7 @@ from collections import OrderedDict
 
 import torchvision
 from torchvision import transforms
+import torch.nn.functional as F
 
 from detectron2.utils.logger import setup_logger
 from detectron2 import model_zoo
@@ -103,30 +104,32 @@ class DoUnseen:
     @torch.no_grad()
     def update_gallery(self, gallery_path):
         # Extract gallery images
-        self.gallery_feats = {}
-        obj_list = os.listdir(gallery_path)
-        for obj_num, obj_path in enumerate(obj_list):
-            obj_images = [self.transform(Image.open(path).convert("RGB")) for path in glob.glob(os.path.join(gallery_path, obj_path, '*'))]
-            obj_images = torch.stack(obj_images)
-            # TODO use bigger batch size to save time
-            if self.method == 'vit':
-                obj_feats = self.model_backbone(obj_images)
-            elif self.method == 'siamese':
-                obj_feats = [self.siamese_model.extract_gallery_feats(obj_images)]
-            self.gallery_feats[obj_list[obj_num]] = obj_feats
+        self.gallery_obj_names = os.listdir(gallery_path)
+        gallery_images = []
+        self.gallery_feats = []
+        self.gallery_classes = []
+        for obj_num, obj_path in enumerate(self.gallery_obj_names):
+            obj_images = glob.glob(os.path.join(gallery_path, obj_path, '*'))
+            gallery_images += [self.transform(Image.open(path).convert("RGB")) for path in obj_images]
+            self.gallery_classes += [obj_num] * len(obj_images)
+        self.gallery_classes = np.array(self.gallery_classes)
+        gallery_images = torch.stack(gallery_images)
+        if self.method == 'vit':
+            self.gallery_feats = self.model_backbone(gallery_images)
+        elif self.method == 'siamese':
+            self.gallery_feats = self.siamese_model.extract_gallery_feats(gallery_images)
+        self.gallery_feats = F.normalize(self.gallery_feats, p=2, dim=1)  # TODO recheck normalization
 
     def find_object(self, rgb_img, predictions, obj_name):
         query_feats = self.extract_query_feats(rgb_img, predictions)
-        obj_feats = self.gallery_feats[obj_name]
-        obj_dists = []
-        for query_id, query_feat in enumerate(query_feats):
-            if self.method == 'vit':
-                dists = torch.cosine_similarity(query_feat, obj_feats, dim=1)
-            elif self.method == 'siamese':
-                dists = self.siamese_model.dist_measure(query_feat.repeat(obj_feats.shape[0], 1), obj_feats)
-            obj_dists.append(np.array(dists))
-        obj_dists = [max(obj) for obj in obj_dists]
-        matched_query = obj_dists.index(max(obj_dists))  # TODO: change method to find several occurrences
+        obj_feats = self.gallery_feats[np.where(self.gallery_classes == self.gallery_obj_names.index(obj_name))[0]]
+        if self.method == 'vit':
+            dists = F.cosine_similarity(query_feats.unsqueeze(1), obj_feats, dim=-1)
+        elif self.method == 'siamese':
+            dists = self.siamese_model.dist_measure(query_feats.repeat(obj_feats.shape[0], 1), obj_feats.repeat(query_feats.shape[0], 1))
+        dists = dists.reshape(obj_feats.shape[0], query_feats.shape[0])
+        dists = torch.transpose(dists, 0, 1)
+        matched_query = torch.argmax(torch.max(dists, dim=1)[0]).item()  # TODO: change method to find several occurrences
         obj_predictions = copy.deepcopy(predictions)
         obj_predictions['instances'] = obj_predictions['instances'][matched_query]
 
@@ -134,22 +137,16 @@ class DoUnseen:
 
     def classify_all_objects(self, rgb_img, predictions):
         classified_predictions = copy.deepcopy(predictions)
-        pred_classes = []
         query_feats = self.extract_query_feats(rgb_img, predictions)
-        for query_id, query_feat in enumerate(query_feats):
-            obj_dists = []
-            for obj_num, obj_name in enumerate(self.gallery_feats.keys()):
-                obj_feats = self.gallery_feats[obj_name]
-                if self.method == 'vit':
-                    dists = torch.cosine_similarity(query_feat, obj_feats, dim=1)
-                elif self.method == 'siamese':
-                    dists = self.siamese_model.dist_measure(query_feat.repeat(obj_feats.shape[0], 1), obj_feats)
-                obj_dists.append(np.array(dists))
-            obj_dists = [max(obj) for obj in obj_dists]  # TODO check for a threshold where the object is not in query
-            pred_class = obj_dists.index(max(obj_dists))
-            pred_classes.append(pred_class)
-        classified_predictions['instances'].pred_classes = torch.tensor(pred_classes)
-
+        if self.method == 'vit':
+            dists = F.cosine_similarity(query_feats.unsqueeze(1), self.gallery_feats, dim=-1)
+        elif self.method == 'siamese':
+            dists = self.siamese_model.dist_measure(query_feats.repeat(self.gallery_feats.shape[0], 1), self.gallery_feats.repeat(query_feats.shape[0], 1))
+        dists = dists.reshape(self.gallery_feats.shape[0], query_feats.shape[0])
+        dists = torch.transpose(dists, 0, 1)
+        # TODO check for a threshold to check if object is is not in query to prevent classification of objects not in gallery
+        pred_classes = torch.tensor(self.gallery_classes[torch.argmax(dists,dim=1).tolist()])
+        classified_predictions['instances'].pred_classes = pred_classes
         return classified_predictions
 
     @torch.no_grad()
@@ -169,11 +166,11 @@ class DoUnseen:
             query_images.append(query_img)
         query_images = torch.stack(query_images)
         if self.method == 'vit':
-            feat = self.model_backbone(query_images)
+            query_feats = self.model_backbone(query_images)
         elif self.method == 'siamese':
-            feat = self.siamese_model.extract_query_feats(query_images)
-        #query_img = torch.unsqueeze(query_img, dim=0)
-        return feat
+            query_feats = self.siamese_model.extract_query_feats(query_images)
+        query_feats = F.normalize(query_feats, p=2, dim=1)  # TODO recheck normalization
+        return query_feats
 
     def draw_found_masks(img, roi, mask):
         return img
