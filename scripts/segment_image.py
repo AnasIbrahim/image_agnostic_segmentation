@@ -4,9 +4,11 @@ import numpy as np
 import cv2
 import argparse
 
-from agnostic_segmentation import agnostic_segmentation
-from agnostic_segmentation import compute_grasp
+from DoUnseen.Dounseen import ZeroShotClassification, UnseenSegment, draw_segmented_image
+from DoUnseen import compute_grasp
 
+#import torch
+#torch.manual_seed(0)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -56,8 +58,9 @@ def main():
 
     print("Segmenting image")
     rgb_img = cv2.imread(args.rgb_image_path)
-    seg_predictions = agnostic_segmentation.segment_image(rgb_img, args.segmentation_model_path)
-    seg_img = agnostic_segmentation.draw_segmented_image(rgb_img, seg_predictions)
+    segmentor= UnseenSegment(args.segmentation_model_path)
+    seg_predictions = segmentor.segment_image(rgb_img)
+    seg_img = draw_segmented_image(rgb_img, seg_predictions)
 
     cv2.imshow('Unseen object segmentation', seg_img)
     cv2.waitKey(0)
@@ -65,9 +68,9 @@ def main():
 
     if args.detect_all_objects:
         print("Classifying all objects")
-        zero_shot_classifier = agnostic_segmentation.DoUnseen(gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
+        zero_shot_classifier = ZeroShotClassification(gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
         class_predictions = zero_shot_classifier.classify_all_objects(rgb_img, seg_predictions)
-        classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_images_path))
+        classified_image = draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_images_path))
 
         cv2.imshow('Classify all objects from gallery', classified_image)
         cv2.waitKey(0)
@@ -78,9 +81,9 @@ def main():
     if args.detect_one_object:
         obj_name = args.object_name
         print("Searching for object {}".format(obj_name))
-        zero_shot_classifier = agnostic_segmentation.DoUnseen(gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
+        zero_shot_classifier = ZeroShotClassification(gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
         class_predictions = zero_shot_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name)
-        classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=[obj_name])
+        classified_image = draw_segmented_image(rgb_img, class_predictions, classes=[obj_name])
 
         cv2.imshow('Find a specific object', classified_image)
         cv2.waitKey(0)
@@ -96,8 +99,6 @@ def main():
         cv2.imshow('Suction points for all objects', suction_pts_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-
-
 
 
 if __name__ == '__main__':
