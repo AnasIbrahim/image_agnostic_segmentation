@@ -91,7 +91,7 @@ def main():
 
     # show suction points for all objects
     if args.compute_suction_pts:
-        print("Computeing suction grasps for all object")
+        print("Computing suction grasps for all objects")
         objects_point_clouds = compute_grasp.make_predicted_objects_clouds(rgb_img, depth_image, c_matrix, seg_predictions)
         suction_pts = compute_grasp.compute_suction_points(seg_predictions, objects_point_clouds)
         suction_pts_image = compute_grasp.visualize_suction_points(seg_img, c_matrix, suction_pts)

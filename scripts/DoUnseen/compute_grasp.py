@@ -3,14 +3,19 @@ import open3d as o3d
 import cv2
 import copy
 
+from threading import Thread
+
 from .vector_quaternion import pose_from_vector3D
+
 
 def make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, predictions):
     instances = predictions["instances"].to("cpu")
 
-    point_clouds = list()
-    for i in range(len(instances)):
-        pred_masks = instances.pred_masks[i].cpu().detach().numpy()
+    threads = [None] * len(instances)
+    point_clouds = [None] * len(instances)
+
+    def make_object_cloud(idx):
+        pred_masks = instances.pred_masks[idx].cpu().detach().numpy()
 
         # mask depth and rgb images
         masked_rgb_img = rgb_img.copy()
@@ -40,7 +45,15 @@ def make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, predictions):
                                                                   depth_scale=1, convert_rgb_to_intensity=False)
         pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsic)
 
-        point_clouds.append(pcd)
+        point_clouds[idx] = pcd
+        return
+
+    for i in range(len(instances)):
+        threads[i] = Thread(target=make_object_cloud, args=(i,))
+        threads[i].start()
+
+    for i in range(len(instances)):
+        threads[i].join()
 
     return point_clouds
 
@@ -49,9 +62,11 @@ def compute_suction_points(predictions, objects_point_clouds):
     # compute best suction point per mask
     instances = predictions["instances"].to("cpu")
 
-    suction_pts = list()
-    for i in range(len(instances)):
-        pcd = objects_point_clouds[i]
+    threads = [None] * len(instances)
+    suction_pts = [None] * len(instances)
+
+    def compute_object_point(cloud_id):
+        pcd = objects_point_clouds[cloud_id]
 
         #o3d.visualization.draw_geometries([pcd])
 
@@ -83,7 +98,15 @@ def compute_suction_points(predictions, objects_point_clouds):
         #o = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2)
         #o3d.visualization.draw_geometries([o, plane_cloud, grasp_arrow])
 
-        suction_pts.append((tuple(grasp_position), tuple(grasp_orientation)))
+        suction_pts[cloud_id] = (tuple(grasp_position), tuple(grasp_orientation))
+        return
+
+    for i in range(len(instances)):
+        threads[i] = Thread(target=compute_object_point, args=(i,))
+        threads[i].start()
+
+    for i in range(len(instances)):
+        threads[i].join()
 
     return suction_pts
 
@@ -114,6 +137,7 @@ def visualize_suction_points(rgb_img, c_matrix, suction_pts):
             pass
 
     return suction_pts_img
+
 
 def make_grasp_arrow_cloud(grasp_position, grasp_orientation):
     # TODO arrow is too small in new open3D release - make size 10X#
