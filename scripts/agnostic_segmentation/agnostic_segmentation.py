@@ -6,6 +6,7 @@ import cv2
 import torch
 from PIL import Image
 from collections import OrderedDict
+import pickle
 
 import torchvision
 from torchvision import transforms
@@ -61,7 +62,7 @@ def draw_segmented_image(img, predictions, classes=['']):
 
 
 class DoUnseen:
-    def __init__(self, gallery_path, method='vit', siamese_model_path=None):
+    def __init__(self, gallery_images_path=None, gallery_buffered_path=None, method='vit', siamese_model_path=None):
     # TODO Save gallery features as a file that can be reloaded
         self.method = method
         if method == 'vit':
@@ -99,19 +100,41 @@ class DoUnseen:
             transforms.Resize(self.feed_shape[1:], antialias=True)
         ])
 
-        self.update_gallery(gallery_path)
+        if gallery_buffered_path is not None:
+            with open(gallery_buffered_path, 'rb') as f:
+                gallery_dict = pickle.load(f)
+            self.gallery_obj_names = gallery_dict['gallery_obj_names']
+            self.gallery_feats = gallery_dict['gallery_feats']
+            self.gallery_classes = gallery_dict['gallery_classes']
+        elif gallery_images_path is not None:
+            self.update_gallery(gallery_images_path)
+        else:
+            print("Neither gallery images path nor buffered gallery file are provided. Exiting ...")
+            exit()
+
+    def save_gallery(self, path):
+        gallery_dict = {}
+        gallery_dict['gallery_obj_names'] = self.gallery_obj_names
+        gallery_dict['gallery_feats'] = self.gallery_feats
+        gallery_dict['gallery_classes'] = self.gallery_classes
+        with open(path, 'wb') as f:
+            pickle.dump(gallery_dict, f)
 
     @torch.no_grad()
     def update_gallery(self, gallery_path):
+        print("Extracting/updating gallery features")
         # Extract gallery images
         self.gallery_obj_names = os.listdir(gallery_path)
         gallery_images = []
         self.gallery_feats = []
         self.gallery_classes = []
         for obj_num, obj_path in enumerate(self.gallery_obj_names):
-            obj_images = glob.glob(os.path.join(gallery_path, obj_path, '*'))
-            gallery_images += [self.transform(Image.open(path).convert("RGB")) for path in obj_images]
-            self.gallery_classes += [obj_num] * len(obj_images)
+            obj_images_path = glob.glob(os.path.join(gallery_path, obj_path, '*'))
+            for obj_image_path in obj_images_path:
+                obj_image = Image.open(obj_image_path).convert("RGB")
+                angles = [0, 45, 90, 135, 180, 225, 270, 315]
+                gallery_images += [self.transform(obj_image.rotate(angle)) for angle in angles]
+            self.gallery_classes += [obj_num] * len(obj_images_path) * len(angles)  # multiply angles for augmentation
         self.gallery_classes = np.array(self.gallery_classes)
         gallery_images = torch.stack(gallery_images)
         if self.method == 'vit':
@@ -137,17 +160,34 @@ class DoUnseen:
 
     def classify_all_objects(self, rgb_img, predictions):
         classified_predictions = copy.deepcopy(predictions)
+        pred_classes = []
         query_feats = self.extract_query_feats(rgb_img, predictions)
-        if self.method == 'vit':
-            dists = F.cosine_similarity(query_feats.unsqueeze(1), self.gallery_feats, dim=-1)
-        elif self.method == 'siamese':
-            dists = self.siamese_model.dist_measure(query_feats.repeat(self.gallery_feats.shape[0], 1), self.gallery_feats.repeat(query_feats.shape[0], 1))
-        dists = dists.reshape(self.gallery_feats.shape[0], query_feats.shape[0])
-        dists = torch.transpose(dists, 0, 1)
-        # TODO check for a threshold to check if object is is not in query to prevent classification of objects not in gallery
-        pred_classes = torch.tensor(self.gallery_classes[torch.argmax(dists,dim=1).tolist()])
-        classified_predictions['instances'].pred_classes = pred_classes
+        for query_id, query_feat in enumerate(query_feats):
+            obj_dists = []
+            for obj_name in self.gallery_obj_names:
+                obj_feats = self.gallery_feats[np.where(self.gallery_classes == self.gallery_obj_names.index(obj_name))[0]]
+                if self.method == 'vit':
+                    dists = torch.cosine_similarity(query_feat, obj_feats, dim=1)
+                elif self.method == 'siamese':
+                    dists = self.siamese_model.dist_measure(query_feat.repeat(obj_feats.shape[0], 1), obj_feats)
+                obj_dists.append(np.array(dists))
+            obj_dists = [max(obj) for obj in obj_dists]  # TODO check for a threshold where the object is not in query
+            pred_class = obj_dists.index(max(obj_dists))
+            pred_classes.append(pred_class)
+        classified_predictions['instances'].pred_classes = torch.tensor(pred_classes)
         return classified_predictions
+        #classified_predictions = copy.deepcopy(predictions)
+        #query_feats = self.extract_query_feats(rgb_img, predictions)
+        #if self.method == 'vit':
+        #    dists = F.cosine_similarity(query_feats.unsqueeze(1), self.gallery_feats, dim=-1)
+        #elif self.method == 'siamese':
+        #    dists = self.siamese_model.dist_measure(query_feats.repeat(self.gallery_feats.shape[0], 1), self.gallery_feats.repeat(query_feats.shape[0], 1))
+        #dists = dists.reshape(self.gallery_feats.shape[0], query_feats.shape[0])
+        #dists = torch.transpose(dists, 0, 1)
+        ## TODO check for a threshold to check if object is is not in query to prevent classification of objects not in gallery
+        #pred_classes = torch.tensor(self.gallery_classes[torch.argmax(dists,dim=1).tolist()])
+        #classified_predictions['instances'].pred_classes = pred_classes
+        #return classified_predictions
 
     @torch.no_grad()
     def extract_query_feats(self, rgb_img, predictions):

@@ -41,7 +41,7 @@ cd ../scripts
 # 2- classify all objects
 # 3- find a specific object
 # 4- calculate suction grasp for all objects
-python segment_image.py --compute-suction-pts --detect-all-objects --detect-one-object
+python segment_image.py --compute-suction-pts --detect-all-objects --detect-one-object --use-buffered-gallery
 
 # To run the unseen object segmentation only with RGB images
 python segment_image.py --rgb-image-path RGB_IMAGE_PATH
@@ -75,7 +75,7 @@ catkin build
 echo "source $(pwd)/devel/setup.bash" >> ~/.bashrc
 source ~/.bashrc
 ```
-To run ROS example:
+To run ROS example (unseen object segmentation only):
 ```
 roslaunch image_agnostic_segmentation test_example.launch
 ```

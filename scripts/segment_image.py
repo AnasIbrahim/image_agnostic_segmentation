@@ -22,7 +22,10 @@ def main():
     parser.add_argument('--detect-one-object', dest='detect_one_object', action='store_true')
     parser.set_defaults(detect_one_object=False)
     parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected', default='obj_000016')
-    parser.add_argument('--gallery_path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
+    parser.add_argument('--gallery_images_path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
+    parser.add_argument('--use-buffered-gallery', dest='use-buffered-gallery', action='store_true')
+    parser.set_defaults(use_buffered_gallery=False)
+    parser.add_argument('--gallery_buffered_path', type=str, help='path to buffered gallery file', default='../demo/objects_gallery.pkl')
 
     parser.add_argument('--compute-suction-pts', dest='compute_suction_pts', action='store_true')
     parser.set_defaults(compute_suction_pts=False)
@@ -46,6 +49,10 @@ def main():
         depth_image = depth_image/args.depth_scale
         c_matrix = [float(i) for i in args.c_matrix]
         c_matrix = np.array(c_matrix).reshape((3, 3))
+    if args.use_buffered_gallery:
+        args.gallery_buffered_path = os.path.abspath(args.gallery_buffered_path)
+    elif not args.use_buffered_gallery:
+        args.gallery_buffered_path = None
 
     print("Segmenting image")
     rgb_img = cv2.imread(args.rgb_image_path)
@@ -58,18 +65,20 @@ def main():
 
     if args.detect_all_objects:
         print("Classifying all objects")
-        zero_shot_classifier = agnostic_segmentation.DoUnseen(args.gallery_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
+        zero_shot_classifier = agnostic_segmentation.DoUnseen(gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
         class_predictions = zero_shot_classifier.classify_all_objects(rgb_img, seg_predictions)
-        classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_path))
+        classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_images_path))
 
         cv2.imshow('Classify all objects from gallery', classified_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
+        #zero_shot_classifier.save_gallery(PATH)
+
     if args.detect_one_object:
         obj_name = args.object_name
         print("Searching for object {}".format(obj_name))
-        zero_shot_classifier = agnostic_segmentation.DoUnseen(args.gallery_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
+        zero_shot_classifier = agnostic_segmentation.DoUnseen(gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
         class_predictions = zero_shot_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name)
         classified_image = agnostic_segmentation.draw_segmented_image(rgb_img, class_predictions, classes=[obj_name])
 
