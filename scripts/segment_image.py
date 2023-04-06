@@ -7,7 +7,7 @@ import argparse
 from DoUnseen.Dounseen import ZeroShotClassification, UnseenSegment, draw_segmented_image
 from DoUnseen import compute_grasp
 
-#import torch
+import torch
 #torch.manual_seed(0)
 
 def main():
@@ -37,6 +37,8 @@ def main():
                         help='camera matrix to convert depth image to point cloud',
                         default=['1390.53', '0.0', '964.957', '0.0', '1386.99', '522.586', '0.0', '0.0', '1.0']) # HOPE dataset - example images
 
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     args = parser.parse_args()
 
     # get absolute path
@@ -58,7 +60,7 @@ def main():
 
     print("Segmenting image")
     rgb_img = cv2.imread(args.rgb_image_path)
-    segmentor= UnseenSegment(args.segmentation_model_path)
+    segmentor= UnseenSegment(args.segmentation_model_path, device=device)
     seg_predictions = segmentor.segment_image(rgb_img)
     seg_img = draw_segmented_image(rgb_img, seg_predictions)
 
@@ -68,7 +70,7 @@ def main():
 
     if args.detect_all_objects:
         print("Classifying all objects")
-        zero_shot_classifier = ZeroShotClassification(gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
+        zero_shot_classifier = ZeroShotClassification(device=device, gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
         class_predictions = zero_shot_classifier.classify_all_objects(rgb_img, seg_predictions)
         classified_image = draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_images_path))
 
@@ -81,7 +83,7 @@ def main():
     if args.detect_one_object:
         obj_name = args.object_name
         print("Searching for object {}".format(obj_name))
-        zero_shot_classifier = ZeroShotClassification(gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
+        zero_shot_classifier = ZeroShotClassification(device=device, gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
         class_predictions = zero_shot_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name)
         classified_image = draw_segmented_image(rgb_img, class_predictions, classes=[obj_name])
 
