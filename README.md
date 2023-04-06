@@ -109,11 +109,11 @@ For more details about the DoPose dataset or the unseen object segmentation mode
 
 For more details about the zero shot classification please refer to [arvix]():
 ```
-@misc{gouda2022dopose6d,
-      title={Zero-shot object detection for robotic grasping}, 
+@misc{???,
+      title={DoUnseen: Zero-shot object detection for robotic grasping}, 
       author={Anas Gouda and Moritz Roidl},
       year={2023},
-      eprint={},
+      eprint={???},
       archivePrefix={arXiv},
       primaryClass={cs.RO}
 }

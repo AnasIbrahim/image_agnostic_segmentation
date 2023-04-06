@@ -146,7 +146,7 @@ class ZeroShotClassification:
         if self.device == 'cuda':
             gallery_images = torch.split(gallery_images, 200)  # TODO use a batch of 200 to fit GPU memory
         else: # self.device == 'cpu'
-            gallery_images = (gallery_images)
+            gallery_images = [gallery_images]
         self.gallery_feats = []
         for batch in gallery_images:
             if self.method == 'vit':
@@ -164,8 +164,8 @@ class ZeroShotClassification:
             dists = F.cosine_similarity(query_feats.unsqueeze(1), obj_feats, dim=-1)
         elif self.method == 'siamese':
             dists = self.siamese_model.dist_measure(query_feats.repeat(obj_feats.shape[0], 1), obj_feats.repeat(query_feats.shape[0], 1))
-        dists = dists.reshape(obj_feats.shape[0], query_feats.shape[0])
-        dists = torch.transpose(dists, 0, 1)
+            dists = dists.reshape(obj_feats.shape[0], query_feats.shape[0])
+            dists = torch.transpose(dists, 0, 1)
         matched_query = torch.argmax(torch.max(dists, dim=1)[0]).item()  # TODO: change method to find several occurrences
         obj_predictions = copy.deepcopy(predictions)
         obj_predictions['instances'] = obj_predictions['instances'][matched_query]

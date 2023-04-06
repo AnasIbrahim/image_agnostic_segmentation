@@ -8,7 +8,7 @@ from DoUnseen.Dounseen import ZeroShotClassification, UnseenSegment, draw_segmen
 from DoUnseen import compute_grasp
 
 import torch
-#torch.manual_seed(0)
+torch.manual_seed(0)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -27,7 +27,7 @@ def main():
     parser.add_argument('--gallery_images_path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
     parser.add_argument('--use-buffered-gallery', dest='use-buffered-gallery', action='store_true')
     parser.set_defaults(use_buffered_gallery=False)
-    parser.add_argument('--gallery_buffered_path', type=str, help='path to buffered gallery file', default='../demo/objects_gallery.pkl')
+    parser.add_argument('--gallery_buffered_path', type=str, help='path to buffered gallery file', default='../demo/objects_gallery_vit.pkl')
 
     parser.add_argument('--compute-suction-pts', dest='compute_suction_pts', action='store_true')
     parser.set_defaults(compute_suction_pts=False)
