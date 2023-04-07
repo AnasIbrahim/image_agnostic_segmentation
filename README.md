@@ -107,14 +107,14 @@ For more details about the DoPose dataset or the unseen object segmentation mode
 
 ```
 
-For more details about the zero shot classification please refer to [arvix]():
+For more details about the zero shot classification please refer to [arvix](https://arxiv.org/abs/2304.02833):
 ```
-@misc{???,
-      title={DoUnseen: Zero-shot object detection for robotic grasping}, 
+@misc{gouda2023dounseen,
+      title={DoUnseen: Zero-Shot Object Detection for Robotic Grasping}, 
       author={Anas Gouda and Moritz Roidl},
       year={2023},
-      eprint={???},
+      eprint={2304.02833},
       archivePrefix={arXiv},
-      primaryClass={cs.RO}
+      primaryClass={cs.CV}
 }
 ```
