@@ -60,7 +60,7 @@ def main():
 
     print("Segmenting image")
     rgb_img = cv2.imread(args.rgb_image_path)
-    segmentor= UnseenSegment(args.segmentation_model_path, device=device)
+    segmentor = UnseenSegment(args.segmentation_model_path, device=device)
     seg_predictions = segmentor.segment_image(rgb_img)
     seg_img = draw_segmented_image(rgb_img, seg_predictions)
 
@@ -83,7 +83,7 @@ def main():
     if args.detect_one_object:
         obj_name = args.object_name
         print("Searching for object {}".format(obj_name))
-        zero_shot_classifier = ZeroShotClassification(device=device, gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
+        zero_shot_classifier = ZeroShotClassification(device=device, gallery_images=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
         class_predictions = zero_shot_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name)
         classified_image = draw_segmented_image(rgb_img, class_predictions, classes=[obj_name])
 

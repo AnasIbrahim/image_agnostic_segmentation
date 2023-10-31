@@ -61,10 +61,11 @@ class UnseenSegment:
 
 
 class ZeroShotClassification:
-    def __init__(self, device, gallery_images_path=None, gallery_buffered_path=None, method='vit', siamese_model_path=None):
+    def __init__(self, device, gallery_images=None, gallery_buffered_path=None, augment_gallery=True ,method='vit', siamese_model_path=None):
     # TODO Save gallery features as a file that can be reloaded
         self.method = method
         self.device = device
+        self.augment_gallery = augment_gallery
         if method == 'vit':
             self.model_backbone = torchvision.models.vit_b_16(weights='DEFAULT')
             self.model_backbone.to(self.device)
@@ -110,8 +111,8 @@ class ZeroShotClassification:
             self.gallery_classes = gallery_dict['gallery_classes']
 
             self.gallery_feats = self.gallery_feats.to(device=self.device)
-        elif gallery_images_path is not None:
-            self.update_gallery(gallery_images_path)
+        elif gallery_images is not None:
+            self.update_gallery(gallery_images)
         else:
             print("Neither gallery images path nor buffered gallery file are provided. Exiting ...")
             exit()
@@ -125,21 +126,43 @@ class ZeroShotClassification:
             pickle.dump(gallery_dict, f)
 
     @torch.no_grad()
-    def update_gallery(self, gallery_path):
+    def update_gallery(self, gallery_images):
+        '''
+        Extract gallery features from gallery images
+        :param gallery_images: path or dictionary of gallery images
+        '''
         print("Extracting/updating gallery features")
+
+        if isinstance(gallery_images, str):  # if path, load images and extract features
+            gallery_path = gallery_images
+            self.gallery_obj_names = os.listdir(gallery_path)
+            gallery_dict = {}
+            for obj_num, obj_name in enumerate(self.gallery_obj_names):
+                obj_images_path = glob.glob(os.path.join(gallery_path, obj_name, '*'))
+                obj_images = []
+                for obj_image_path in obj_images_path:
+                    obj_image = Image.open(obj_image_path).convert("RGB")
+                    obj_images.append(obj_image)
+                gallery_dict[obj_name] = obj_images
+        elif isinstance(gallery_images, dict):  # if dictionary of lists of PIL images, extract features only
+            gallery_dict = gallery_images
+            self.gallery_obj_names = list(gallery_dict.keys())
+
         # Extract gallery images
-        self.gallery_obj_names = os.listdir(gallery_path)
         gallery_images = []
         self.gallery_feats = []
         self.gallery_classes = []
-        for obj_num, obj_path in enumerate(self.gallery_obj_names):
-            obj_images_path = glob.glob(os.path.join(gallery_path, obj_path, '*'))
-            for obj_image_path in obj_images_path:
-                obj_image = Image.open(obj_image_path).convert("RGB")
-                angles = [0, 45, 90, 135, 180, 225, 270, 315]
-                gallery_images += [self.transform(obj_image.rotate(angle)) for angle in angles]
-            self.gallery_classes += [obj_num] * len(obj_images_path) * len(angles)  # multiply angles for augmentation
+        for obj_num, obj_name in enumerate(gallery_dict):
+            obj_images = gallery_dict[obj_name]
+            for obj_image in obj_images:
+                if not self.augment_gallery:
+                    gallery_images.append(self.transform(obj_image))
+                else:
+                    angles = [0, 45, 90, 135, 180, 225, 270, 315]
+                    gallery_images += [self.transform(obj_image.rotate(angle)) for angle in angles]
+            self.gallery_classes += [obj_num] * len(obj_images) * len(angles)  # multiply angles for augmentation
         self.gallery_classes = np.array(self.gallery_classes)
+
         gallery_images = torch.stack(gallery_images)
         gallery_images = gallery_images.to(device=self.device)
         # split image to fit into memory
