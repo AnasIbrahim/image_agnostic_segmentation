@@ -26,6 +26,8 @@ Third, install other required ros packages
 ```
 sudo apt install ros-"$ROS_DISTRO"-ros-numpy
 ```
+Fourth, install Segment Anything (SAM) package from [here](https://github.com/facebookresearch/segment-anything)
+
 ## Python example
 To test the model directly without ROS
 ```

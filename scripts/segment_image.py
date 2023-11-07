@@ -13,8 +13,9 @@ torch.manual_seed(0)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='../demo/rgb_images/000000.png')
-    parser.add_argument("--segmentation-model-path", type=str, help="path to unseen object segmentation model",
-                        default='../models/unseen_object_segmentation.pth')
+    parser.add_argument("--segmentation-method", type=str, help="method to use for segmentation 'maskrcnn', 'SAM' ", default='SAM')
+    parser.add_argument("--maskrcnn-model-path", type=str, help="path to unseen object segmentation model",default='../models/unseen_object_segmentation.pth')
+    parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model",default='../models/sam_vit_b_01ec64.pth')
 
     parser.add_argument('--classification-method', type=str, help="method to use for classification 'vit' or 'siamese'", default='vit')
     parser.add_argument("--siamese-model-path", type=str, help="path to siamese classification model",
@@ -43,8 +44,7 @@ def main():
 
     # get absolute path
     args.rgb_image_path = os.path.abspath(args.rgb_image_path)
-    args.segmentation_model_path = os.path.abspath(args.segmentation_model_path)
-    if not os.path.exists(args.segmentation_model_path):
+    if (args.segmentation_method == 'maskrcnn' and not os.path.exists(args.maskrcnn_model_path)) or (args.segmentation_method == 'SAM' and not os.path.exists(args.sam_model_path)):
         print("Model path doesn't exist, please download the segmentation model. Exiting ...")
         exit()
     if args.compute_suction_pts:
@@ -60,7 +60,7 @@ def main():
 
     print("Segmenting image")
     rgb_img = cv2.imread(args.rgb_image_path)
-    segmentor = UnseenSegment(args.segmentation_model_path, device=device)
+    segmentor = UnseenSegment(device=device, method=args.segmentation_method, maskrcnn_model_path=os.path.abspath(args.maskrcnn_model_path), sam_model_path=os.path.abspath(args.sam_model_path))
     seg_predictions = segmentor.segment_image(rgb_img)
     seg_img = draw_segmented_image(rgb_img, seg_predictions)
 

@@ -21,6 +21,8 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.utils.visualizer import ColorMode
 from detectron2.evaluation import coco_evaluation
 
+import pycocotools
+
 from .siamese_network import SiameseNetwork
 
 setup_logger()  # initialize the detectron2 logger and set its verbosity level to “DEBUG”.
@@ -42,21 +44,65 @@ def draw_segmented_image(img, predictions, classes=['']):
 
 
 class UnseenSegment:
-    def __init__(self, model_path, device, confidence=0.7):
-        # --- detectron2 Config setup ---
-        cfg = get_cfg()
-        cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))  # WAS 3x.y
-        cfg.MODEL.WEIGHTS = model_path
-        cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1
-        cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 1
-        cfg.MODEL.ROI_BOX_HEAD.CLS_AGNOSTIC_BBOX_REG = True
-        cfg.MODEL.ROI_MASK_HEAD.CLS_AGNOSTIC_MASK = True
-        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = confidence
-        cfg.MODEL.DEVICE = device
-        self.predictor = DefaultPredictor(cfg)
+    def __init__(self, device, method='SAM', sam_model_path=None, maskrcnn_model_path=None, confidence=0.7):
+        self.method = method
+
+        if self.method == 'maskrcnn':
+            # --- detectron2 Config setup ---
+            cfg = get_cfg()
+            cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))  # WAS 3x.y
+            cfg.MODEL.WEIGHTS = maskrcnn_model_path
+            cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1
+            cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 1
+            cfg.MODEL.ROI_BOX_HEAD.CLS_AGNOSTIC_BBOX_REG = True
+            cfg.MODEL.ROI_MASK_HEAD.CLS_AGNOSTIC_MASK = True
+            cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = confidence
+            cfg.MODEL.DEVICE = device
+            self.predictor = DefaultPredictor(cfg)
+        elif self.method == 'SAM':
+            from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
+            sam = sam_model_registry["vit_b"](checkpoint=sam_model_path)
+            sam.to(device="cuda")
+            self.mask_generator = SamAutomaticMaskGenerator(
+                model=sam,
+                points_per_side=50,
+                pred_iou_thresh=0.7,
+                stability_score_thresh=0.92,
+                crop_n_layers=0,
+                crop_n_points_downscale_factor=2,
+                min_mask_region_area=100,  # Requires open-cv to run post-processing,
+                output_mode='coco_rle'
+            )
 
     def segment_image(self, img):
-        predictions = self.predictor(img)
+        if self.method == 'maskrcnn':
+            predictions = self.predictor(img)
+        elif self.method == 'SAM':
+            from detectron2.structures.instances import Instances
+            from detectron2.structures.boxes import Boxes
+            from .utils import merge_masks
+            masks = self.mask_generator.generate(img)
+            # convert coco rle mask to binary mask
+            for mask in masks:
+                mask['segmentation'] = pycocotools.mask.decode(mask['segmentation'])
+                # convert mask to bool
+                mask['segmentation'] = mask['segmentation'].astype(bool)
+
+                # convet bbox from XYWH to X1Y1X2Y2
+                mask['bbox'] = [mask['bbox'][0], mask['bbox'][1], mask['bbox'][0]+mask['bbox'][2], mask['bbox'][1]+mask['bbox'][3]]
+
+            masks = sorted(masks, key=(lambda x: x['area']), reverse=False)  # smaller masks to be merged first
+
+            masks = merge_masks(masks, img)
+
+            predictions = Instances(
+                image_size=(img.shape[0], img.shape[1]),
+                pred_boxes=Boxes(torch.tensor([mask['bbox'] for mask in masks])),
+                scores=torch.tensor([mask['stability_score'] for mask in masks]),
+                pred_classes=torch.IntTensor(np.zeros(len(masks))),  # there are no classes - all clases are class 0
+                pred_masks=torch.tensor(np.array([mask['segmentation'] for mask in masks]))
+            )
+            predictions = {'instances': predictions}
         return predictions
 
 
@@ -114,8 +160,8 @@ class ZeroShotClassification:
         elif gallery_images is not None:
             self.update_gallery(gallery_images)
         else:
-            print("Neither gallery images path nor buffered gallery file are provided. Exiting ...")
-            exit()
+            print("Warning: no gallery images or buffered gallery features are provided. \n"
+                  "use update_gallery() to update gallery features")
 
     def save_gallery(self, path):
         gallery_dict = {}
