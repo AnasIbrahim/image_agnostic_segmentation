@@ -17,8 +17,8 @@ def merge_masks(original_masks, rgb_color_image):
         #plot_mask([masks[i]], rgb_color_image)
         # check if the current mask is already included in a merged mask
         already_merged = False
-        for j in range(len(merged_masks)):
-            if np.array_equal(masks[i], merged_masks[j]):
+        for j in range(len(merged_masks_binary)):
+            if np.array_equal(masks[i], merged_masks_binary[j]):
                 already_merged = True
                 break
 
@@ -46,6 +46,8 @@ def merge_masks(original_masks, rgb_color_image):
                     merged_mask = np.logical_or(merged_mask, masks[j])
             # add the merged mask to the list of merged masks
             merged_masks_binary.append(merged_mask)
+            merged_masks_binary.append(masks[i])
+            merged_masks_binary.append(masks[j])
 
             new_mask = original_masks[j].copy()
             # replace the segmentation mask with the merged mask
