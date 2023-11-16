@@ -44,7 +44,7 @@ def draw_segmented_image(img, predictions, classes=['']):
 
 
 class UnseenSegment:
-    def __init__(self, device, method='SAM', sam_model_path=None, maskrcnn_model_path=None, confidence=0.7):
+    def __init__(self, device, method='SAM', sam_model_path=None, maskrcnn_model_path=None, confidence=0.7, filter_sam_predictions=False):
         self.method = method
 
         if self.method == 'maskrcnn':
@@ -62,7 +62,8 @@ class UnseenSegment:
         elif self.method == 'SAM':
             from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
             sam = sam_model_registry["vit_b"](checkpoint=sam_model_path)
-            sam.to(device="cuda")
+            sam.to(device=device)
+            self.filter_sam_predictions = filter_sam_predictions
             self.mask_generator = SamAutomaticMaskGenerator(
                 model=sam,
                 points_per_side=50,
@@ -80,7 +81,6 @@ class UnseenSegment:
         elif self.method == 'SAM':
             from detectron2.structures.instances import Instances
             from detectron2.structures.boxes import Boxes
-            from .utils import merge_masks
             masks = self.mask_generator.generate(img)
             # convert coco rle mask to binary mask
             for mask in masks:
@@ -93,7 +93,9 @@ class UnseenSegment:
 
             masks = sorted(masks, key=(lambda x: x['area']), reverse=False)  # smaller masks to be merged first
 
-            masks = merge_masks(masks, img)
+            if self.filter_sam_predictions:
+                from .utils import merge_masks
+                masks = merge_masks(masks, img)
 
             predictions = Instances(
                 image_size=(img.shape[0], img.shape[1]),
