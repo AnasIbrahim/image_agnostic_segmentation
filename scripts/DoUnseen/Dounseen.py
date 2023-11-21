@@ -12,23 +12,16 @@ import torchvision
 from torchvision import transforms
 import torch.nn.functional as F
 
-from detectron2.utils.logger import setup_logger
-from detectron2 import model_zoo
-from detectron2.engine import DefaultPredictor
-from detectron2.config import get_cfg
-from detectron2.data import MetadataCatalog
-from detectron2.utils.visualizer import Visualizer
-from detectron2.utils.visualizer import ColorMode
-from detectron2.evaluation import coco_evaluation
-
-import pycocotools
-
-from .siamese_network import SiameseNetwork
-
-setup_logger()  # initialize the detectron2 logger and set its verbosity level to “DEBUG”.
-
-
 def draw_segmented_image(img, predictions, classes=['']):
+    # TODO draw masks witout dependency on detectron2
+    try:
+        from detectron2.data import MetadataCatalog
+        from detectron2.utils.visualizer import Visualizer
+        from detectron2.utils.visualizer import ColorMode
+    except ImportError:
+        print("Detectron2 is required for installation installed. Exiting ...")
+        exit()
+
     if 'dounseen' in [x for x in MetadataCatalog]:
         MetadataCatalog.remove('dounseen')
     MetadataCatalog.get('dounseen').set(thing_classes=classes)
@@ -48,6 +41,12 @@ class UnseenSegment:
         self.method = method
 
         if self.method == 'maskrcnn':
+            from detectron2.utils.logger import setup_logger
+            from detectron2 import model_zoo
+            from detectron2.engine import DefaultPredictor
+            from detectron2.config import get_cfg
+
+            setup_logger()  # initialize the detectron2 logger and set its verbosity level to “DEBUG”.
             # --- detectron2 Config setup ---
             cfg = get_cfg()
             cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))  # WAS 3x.y
@@ -79,8 +78,10 @@ class UnseenSegment:
         if self.method == 'maskrcnn':
             predictions = self.predictor(img)
         elif self.method == 'SAM':
+            # TODO remove dependency on detectron2
             from detectron2.structures.instances import Instances
             from detectron2.structures.boxes import Boxes
+            import pycocotools
             masks = self.mask_generator.generate(img)
             # convert coco rle mask to binary mask
             for mask in masks:
@@ -118,6 +119,7 @@ class ZeroShotClassification:
             self.model_backbone = torchvision.models.vit_b_16(weights='DEFAULT')
             self.model_backbone.to(self.device)
         elif method == 'siamese':
+            from .siamese_network import SiameseNetwork
             if siamese_model_path is None:
                 print("Path for siamese model is missing. Exiting ...")
                 exit()

@@ -13,8 +13,8 @@ torch.manual_seed(0)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='../demo/rgb_images/000000.png')
-    parser.add_argument("--segmentation-method", type=str, help="method to use for segmentation 'maskrcnn', 'SAM' ", default='SAM')
-    parser.add_argument("--maskrcnn-model-path", type=str, help="path to unseen object segmentation model", default='../models/unseen_object_segmentation.pth')
+    parser.add_argument("--segmentation-method", type=str, help="method to use for segmentation 'maskrcnn' or 'SAM' ", default='maskrcnn')
+    parser.add_argument("--maskrcnn-model-path", type=str, help="path to unseen object segmentation model", default='../models/segmentation_mask_rcnn.pth')
     parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model", default='../models/sam_vit_b_01ec64.pth')
     parser.add_argument("--filter-sam-predictions", dest='filter_sam_predictions', action='store_true')
     parser.set_defaults(filter_sam_predictions=True)
@@ -27,7 +27,7 @@ def main():
     parser.add_argument('--detect-one-object', dest='detect_one_object', action='store_true')
     parser.set_defaults(detect_one_object=False)
     parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected', default='obj_000016')
-    parser.add_argument('--gallery_images_path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
+    parser.add_argument('--gallery-images-path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
     parser.add_argument('--use-buffered-gallery', dest='use-buffered-gallery', action='store_true')
     parser.set_defaults(use_buffered_gallery=False)
     parser.add_argument('--gallery_buffered_path', type=str, help='path to buffered gallery file', default='../demo/objects_gallery_vit.pkl')
@@ -72,7 +72,7 @@ def main():
 
     if args.detect_all_objects:
         print("Classifying all objects")
-        zero_shot_classifier = ZeroShotClassification(device=device, gallery_images_path=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
+        zero_shot_classifier = ZeroShotClassification(device=device, gallery_images=args.gallery_images_path, gallery_buffered_path=args.  gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
         class_predictions = zero_shot_classifier.classify_all_objects(rgb_img, seg_predictions)
         classified_image = draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_images_path))
 
