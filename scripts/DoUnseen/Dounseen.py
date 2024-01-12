@@ -37,7 +37,7 @@ def draw_segmented_image(img, predictions, classes=['']):
 
 
 class UnseenSegment:
-    def __init__(self, device, method='SAM', sam_model_path=None, maskrcnn_model_path=None, confidence=0.7, filter_sam_predictions=False):
+    def __init__(self, device, method='SAM', sam_model_path=None, maskrcnn_model_path=None, mask_rcnn_confidence=0.7, filter_sam_predictions=False):
         self.method = method
 
         if self.method == 'maskrcnn':
@@ -55,7 +55,7 @@ class UnseenSegment:
             cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 1
             cfg.MODEL.ROI_BOX_HEAD.CLS_AGNOSTIC_BBOX_REG = True
             cfg.MODEL.ROI_MASK_HEAD.CLS_AGNOSTIC_MASK = True
-            cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = confidence
+            cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = mask_rcnn_confidence
             cfg.MODEL.DEVICE = device
             self.predictor = DefaultPredictor(cfg)
         elif self.method == 'SAM':
@@ -73,6 +73,9 @@ class UnseenSegment:
                 min_mask_region_area=100,  # Requires open-cv to run post-processing,
                 output_mode='coco_rle'
             )
+        else:
+            # throw exception method doesn't exist
+            raise Exception("Invalid segmentation method")
 
     def segment_image(self, img):
         if self.method == 'maskrcnn':
@@ -109,42 +112,22 @@ class UnseenSegment:
         return predictions
 
 
-class ZeroShotClassification:
-    def __init__(self, device, gallery_images=None, gallery_buffered_path=None, augment_gallery=True ,method='vit', siamese_model_path=None):
-    # TODO Save gallery features as a file that can be reloaded
+class UnseenClassifier:
+    def __init__(self, device, model_path, gallery_images=None, gallery_buffered_path=None, augment_gallery=False, method='vit-b-16-ctl', batch_size=200):
         self.method = method
         self.device = device
         self.augment_gallery = augment_gallery
-        if method == 'vit':
-            self.model_backbone = torchvision.models.vit_b_16(weights='DEFAULT')
-            self.model_backbone.to(self.device)
-        elif method == 'siamese':
-            from .siamese_network import SiameseNetwork
-            if siamese_model_path is None:
-                print("Path for siamese model is missing. Exiting ...")
-                exit()
-            self.siamese_model = SiameseNetwork()
-            self.siamese_model = self.siamese_model.to(self.device)
-
-            checkpoint = torch.load(siamese_model_path, map_location=torch.device('cpu'))
-            state_dict = checkpoint['state_dict']
-
-            model_dict = self.siamese_model.state_dict()
-            new_state_dict = OrderedDict()
-            matched_layers, discarded_layers = [], []
-
-            for k, v in state_dict.items():
-                if k.startswith('module.'):
-                    k = k[7:] # discard module.
-
-                if k in model_dict and model_dict[k].size() == v.size():
-                    new_state_dict[k] = v
-                    matched_layers.append(k)
-                else:
-                    discarded_layers.append(k)
-
-            model_dict.update(new_state_dict)
-            self.siamese_model.load_state_dict(model_dict)
+        self.batch_size = batch_size
+        # load model weights
+        model_weights = torch.load(model_path, map_location=device)
+        if method == 'vit-b-16-ctl':
+            self.model_backbone = torchvision.models.vit_b_16(weights=None)
+        elif method == 'resnet-50-ctl':
+            self.model_backbone = torchvision.models.resnet50(weights=None)
+        else:
+            raise Exception("Invalid classification method")
+        self.model_backbone.load_state_dict(model_weights)
+        self.model_backbone.to(self.device)
 
         self.feed_shape = [3, 224, 224]
         self.transform = transforms.Compose([
@@ -194,7 +177,7 @@ class ZeroShotClassification:
                     obj_image = Image.open(obj_image_path).convert("RGB")
                     obj_images.append(obj_image)
                 gallery_dict[obj_name] = obj_images
-        elif isinstance(gallery_images, dict):  # if dictionary of lists of PIL images, extract features only
+        elif isinstance(gallery_images, dict):  # if dictionary is list of lists of PIL images, extract features only
             gallery_dict = gallery_images
             self.gallery_obj_names = list(gallery_dict.keys())
 
@@ -203,43 +186,49 @@ class ZeroShotClassification:
         self.gallery_feats = []
         self.gallery_classes = []
         for obj_num, obj_name in enumerate(gallery_dict):
+            # TODO optimize code by feeding all images at once to self.transform
             obj_images = gallery_dict[obj_name]
             for obj_image in obj_images:
                 if not self.augment_gallery:
                     gallery_images.append(self.transform(obj_image))
+                    self.gallery_classes.append(obj_num)
                 else:
                     angles = [0, 45, 90, 135, 180, 225, 270, 315]
-                    gallery_images += [self.transform(obj_image.rotate(angle)) for angle in angles]
-            self.gallery_classes += [obj_num] * len(obj_images) * len(angles)  # multiply angles for augmentation
+                    gallery_images.extend([self.transform(obj_image.rotate(angle)) for angle in angles])
+                    self.gallery_classes.extend([obj_num] * len(angles))  # multiply angles for augmentation
         self.gallery_classes = np.array(self.gallery_classes)
 
         gallery_images = torch.stack(gallery_images)
         gallery_images = gallery_images.to(device=self.device)
-        # split image to fit into memory
-        if self.device == 'cuda':
-            gallery_images = torch.split(gallery_images, 200)  # TODO use a batch of 200 to fit GPU memory
-        else: # self.device == 'cpu'
-            gallery_images = [gallery_images]
+        # split image to fit into GPU memory
+        gallery_images = torch.split(gallery_images, self.batch_size)
         self.gallery_feats = []
         for batch in gallery_images:
-            if self.method == 'vit':
-                batch_feats = self.model_backbone(batch)
-            elif self.method == 'siamese':
-                batch_feats = self.siamese_model.extract_gallery_feats(batch)
+            batch_feats = self.model_backbone(batch)
             self.gallery_feats.append(batch_feats)
         self.gallery_feats = torch.cat(self.gallery_feats)
-        self.gallery_feats = F.normalize(self.gallery_feats, p=2, dim=1)  # TODO recheck normalization
+        self.gallery_feats = F.normalize(self.gallery_feats, p=2, dim=1)
 
-    def find_object(self, rgb_img, predictions, obj_name):
+    @torch.no_grad()
+    def find_object(self, rgb_img, predictions, obj_name, centroid=False):
         query_feats = self.extract_query_feats(rgb_img, predictions)
         obj_feats = self.gallery_feats[np.where(self.gallery_classes == self.gallery_obj_names.index(obj_name))[0]]
-        if self.method == 'vit':
-            dists = F.cosine_similarity(query_feats.unsqueeze(1), obj_feats, dim=-1)
-        elif self.method == 'siamese':
-            dists = self.siamese_model.dist_measure(query_feats.repeat(obj_feats.shape[0], 1), obj_feats.repeat(query_feats.shape[0], 1))
-            dists = dists.reshape(obj_feats.shape[0], query_feats.shape[0])
-            dists = torch.transpose(dists, 0, 1)
-        matched_query = torch.argmax(torch.max(dists, dim=1)[0]).item()  # TODO: change method to find several occurrences
+        if centroid:
+            # calculate centroid of gallery object features
+            obj_feats = torch.mean(obj_feats, dim=0)
+            # calculate cosine similarity between query and gallery objects using torch cdist
+            dist_matrix = torch.nn.functional.cosine_similarity(query_feats, obj_feats.unsqueeze(0), dim=1)
+            dist_matrix = 1 - dist_matrix
+            # find the id of the closest distance from the 1-D array
+            matched_query = torch.where(dist_matrix == torch.min(dist_matrix))[0]
+            print(torch.argsort(dist_matrix.squeeze()))
+        else:
+            # calculate cosine similarity between query and gallery objects using torch cdist
+            dist_matrix = torch.nn.functional.cosine_similarity(query_feats.unsqueeze(0), obj_feats.unsqueeze(1), dim=2)
+            dist_matrix = 1 - dist_matrix
+            dist_matrix = dist_matrix.transpose(0, 1)
+            # find the id of the closest distance from the 2D array
+            matched_query = torch.where(dist_matrix == torch.min(dist_matrix))[0]
         obj_predictions = copy.deepcopy(predictions)
         obj_predictions['instances'] = obj_predictions['instances'][matched_query]
 
@@ -253,28 +242,13 @@ class ZeroShotClassification:
             obj_dists = []
             for obj_name in self.gallery_obj_names:
                 obj_feats = self.gallery_feats[np.where(self.gallery_classes == self.gallery_obj_names.index(obj_name))[0]]
-                if self.method == 'vit':
-                    dists = torch.cosine_similarity(query_feat, obj_feats, dim=1)
-                elif self.method == 'siamese':
-                    dists = self.siamese_model.dist_measure(query_feat.repeat(obj_feats.shape[0], 1), obj_feats)
+                dists = torch.cosine_similarity(query_feat, obj_feats, dim=1)
                 obj_dists.append(np.array(dists.cpu()))
             obj_dists = [max(obj) for obj in obj_dists]  # TODO check for a threshold where the object is not in query
             pred_class = obj_dists.index(max(obj_dists))
             pred_classes.append(pred_class)
         classified_predictions['instances'].pred_classes = torch.tensor(pred_classes)
         return classified_predictions
-        #classified_predictions = copy.deepcopy(predictions)
-        #query_feats = self.extract_query_feats(rgb_img, predictions)
-        #if self.method == 'vit':
-        #    dists = F.cosine_similarity(query_feats.unsqueeze(1), self.gallery_feats, dim=-1)
-        #elif self.method == 'siamese':
-        #    dists = self.siamese_model.dist_measure(query_feats.repeat(self.gallery_feats.shape[0], 1), self.gallery_feats.repeat(query_feats.shape[0], 1))
-        #dists = dists.reshape(self.gallery_feats.shape[0], query_feats.shape[0])
-        #dists = torch.transpose(dists, 0, 1)
-        ## TODO check for a threshold to check if object is is not in query to prevent classification of objects not in gallery
-        #pred_classes = torch.tensor(self.gallery_classes[torch.argmax(dists,dim=1).tolist()])
-        #classified_predictions['instances'].pred_classes = pred_classes
-        #return classified_predictions
 
     @torch.no_grad()
     def extract_query_feats(self, rgb_img, predictions):
@@ -283,7 +257,9 @@ class ZeroShotClassification:
         for idx in range(len(instances)):
             bbox = instances[idx].pred_boxes.tensor.squeeze().numpy()
             mask = instances[idx].pred_masks.squeeze().numpy().astype(np.uint8)
-            masked_rgb = cv2.bitwise_or(rgb_img, rgb_img, mask=mask)
+            # make a masked rgb image with a white background
+            masked_rgb = np.ones(rgb_img.shape, dtype=np.uint8) * 255
+            masked_rgb[mask == 1] = rgb_img[mask == 1]
             bbox = [int(val) for val in bbox]
             obj_cropped_mask = masked_rgb[bbox[1]:bbox[3], bbox[0]:bbox[2]]
             #cv2.imshow('image', obj_cropped_mask)
@@ -293,11 +269,15 @@ class ZeroShotClassification:
             query_images.append(query_img)
         query_images = torch.stack(query_images)
         query_images = query_images.to(device=self.device)
-        if self.method == 'vit':
-            query_feats = self.model_backbone(query_images)
-        elif self.method == 'siamese':
-            query_feats = self.siamese_model.extract_query_feats(query_images)
-        query_feats = F.normalize(query_feats, p=2, dim=1)  # TODO recheck normalization
+        # split image to fit into GPU memory
+        # probably number of query images is small enough to fit into GPU memory at once but just to be sure
+        query_images = torch.split(query_images, self.batch_size)
+        query_feats = []
+        for batch in query_images:
+            batch_feats = self.model_backbone(batch)
+            query_feats.append(batch_feats)
+        query_feats = torch.cat(query_feats)
+        query_feats = F.normalize(query_feats, p=2, dim=1)
         return query_feats
 
     def draw_found_masks(img, roi, mask):

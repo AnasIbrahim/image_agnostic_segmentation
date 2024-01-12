@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 import argparse
 
-from DoUnseen.Dounseen import ZeroShotClassification, UnseenSegment, draw_segmented_image
+from DoUnseen.Dounseen import UnseenSegment, UnseenClassifier, draw_segmented_image
 from DoUnseen import compute_grasp
 
 import torch
@@ -19,18 +19,17 @@ def main():
     parser.add_argument("--filter-sam-predictions", dest='filter_sam_predictions', action='store_true')
     parser.set_defaults(filter_sam_predictions=True)
 
-    parser.add_argument('--classification-method', type=str, help="method to use for classification 'vit' or 'siamese'", default='vit')
-    parser.add_argument("--siamese-model-path", type=str, help="path to siamese classification model",
-                        default='../models/classification_siamese_net.pth')
+    parser.add_argument('--classification-method', type=str, help="method to use for classification 'resnet-50-ctl' or 'vit-b-16-ctl'", default='vit-b-16-ctl')
+    parser.add_argument("--classification-model-path", type=str, help="path to unseen object classification model", default='../models/classification_vit_b_16_ctl.pth')
     parser.add_argument('--detect-all-objects', dest='detect_all_objects', action='store_true')
     parser.set_defaults(detect_all_objects=False)
     parser.add_argument('--detect-one-object', dest='detect_one_object', action='store_true')
-    parser.set_defaults(detect_one_object=False)
+    parser.set_defaults(detect_one_object=True)
     parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected', default='obj_000016')
     parser.add_argument('--gallery-images-path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
     parser.add_argument('--use-buffered-gallery', dest='use-buffered-gallery', action='store_true')
     parser.set_defaults(use_buffered_gallery=False)
-    parser.add_argument('--gallery_buffered_path', type=str, help='path to buffered gallery file', default='../demo/objects_gallery_vit.pkl')
+    parser.add_argument('--gallery_buffered_path', type=str, help='path to buffered gallery file', default='../demo/??????.pkl')
 
     parser.add_argument('--compute-suction-pts', dest='compute_suction_pts', action='store_true')
     parser.set_defaults(compute_suction_pts=False)
@@ -40,15 +39,42 @@ def main():
                         help='camera matrix to convert depth image to point cloud',
                         default=['1390.53', '0.0', '964.957', '0.0', '1386.99', '522.586', '0.0', '0.0', '1.0']) # HOPE dataset - example images
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
     args = parser.parse_args()
 
-    # get absolute path
-    args.rgb_image_path = os.path.abspath(args.rgb_image_path)
-    if (args.segmentation_method == 'maskrcnn' and not os.path.exists(args.maskrcnn_model_path)) or (args.segmentation_method == 'SAM' and not os.path.exists(args.sam_model_path)):
-        print("Model path doesn't exist, please download the segmentation model. Exiting ...")
+    if torch.cuda.is_available():
+        device = 'cuda'
+    else:
+        print("No GPU found, this package is not optimized for CPU. Exiting ...")
         exit()
+
+    if args.segmentation_method == 'maskrcnn':
+        if os.path.exists(args.maskrcnn_model_path):
+            args.maskrcnn_model_path = os.path.abspath(args.maskrcnn_model_path)
+        else:
+            print("Mask R-CNN model path doesn't exist, please download the segmentation model. Exiting ...")
+            exit()
+    elif args.segmentation_method == 'SAM' and not os.path.exists(args.sam_model_path):
+        if os.path.exists(args.sam_model_path):
+            args.sam_model_path = os.path.abspath(args.sam_model_path)
+        else:
+            print("SAM model path doesn't exist, please download the segmentation model. Exiting ...")
+            exit()
+
+    if args.classification_method == 'resnet-50-ctl':
+        if os.path.exists(args.classification_model_path):
+            args.classification_model_path = os.path.abspath(args.classification_model_path)
+        else:
+            print("ResNet-50 model path doesn't exist, please download the classification model. Exiting ...")
+            exit()
+    elif args.classification_method == 'vit-b-16-ctl':
+        if os.path.exists(args.classification_model_path):
+            args.classification_model_path = os.path.abspath(args.classification_model_path)
+        else:
+            print("ViT-B/16 model path doesn't exist, please download the classification model. Exiting ...")
+            exit()
+
+    # get absolute paths
+    args.rgb_image_path = os.path.abspath(args.rgb_image_path)
     if args.compute_suction_pts:
         args.depth_image_path = os.path.abspath(args.depth_image_path)
         depth_image = cv2.imread(args.depth_image_path, -1)
@@ -62,21 +88,21 @@ def main():
 
     print("Segmenting image")
     rgb_img = cv2.imread(args.rgb_image_path)
-    segmentor = UnseenSegment(device=device, method=args.segmentation_method, maskrcnn_model_path=os.path.abspath(args.maskrcnn_model_path), sam_model_path=os.path.abspath(args.sam_model_path), filter_sam_predictions=args.filter_sam_predictions)
+    segmentor = UnseenSegment(device=device, method=args.segmentation_method, sam_model_path=args.sam_model_path, maskrcnn_model_path=args.maskrcnn_model_path)
     seg_predictions = segmentor.segment_image(rgb_img)
     seg_img = draw_segmented_image(rgb_img, seg_predictions)
 
-    cv2.imshow('Unseen object segmentation', seg_img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    #cv2.imshow('Unseen object segmentation', cv2.resize(seg_img, (0, 0), fx=0.5, fy=0.5))
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
 
     if args.detect_all_objects:
         print("Classifying all objects")
-        zero_shot_classifier = ZeroShotClassification(device=device, gallery_images=args.gallery_images_path, gallery_buffered_path=args.  gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
-        class_predictions = zero_shot_classifier.classify_all_objects(rgb_img, seg_predictions)
+        unseen_classifier = UnseenClassifier(device=device, model_path=args.classification_model_path, gallery_images=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, augment_gallery=False, method=args.classification_method)
+        class_predictions = unseen_classifier.classify_all_objects(rgb_img, seg_predictions)
         classified_image = draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_images_path))
 
-        cv2.imshow('Classify all objects from gallery', classified_image)
+        cv2.imshow('Classify all objects from gallery', cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
@@ -85,11 +111,11 @@ def main():
     if args.detect_one_object:
         obj_name = args.object_name
         print("Searching for object {}".format(obj_name))
-        zero_shot_classifier = ZeroShotClassification(device=device, gallery_images=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, method=args.classification_method, siamese_model_path=os.path.abspath(args.siamese_model_path))
-        class_predictions = zero_shot_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name)
+        unseen_classifier = UnseenClassifier(device=device, model_path=args.classification_model_path, gallery_images=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, augment_gallery=True, method=args.classification_method)
+        class_predictions = unseen_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name)
         classified_image = draw_segmented_image(rgb_img, class_predictions, classes=[obj_name])
 
-        cv2.imshow('Find a specific object', classified_image)
+        cv2.imshow('Find a specific object', cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
@@ -100,7 +126,7 @@ def main():
         suction_pts = compute_grasp.compute_suction_points(seg_predictions, objects_point_clouds)
         suction_pts_image = compute_grasp.visualize_suction_points(seg_img, c_matrix, suction_pts)
 
-        cv2.imshow('Suction points for all objects', suction_pts_image)
+        cv2.imshow('Suction points for all objects', cv2.resize(suction_pts_image, (0, 0), fx=0.5, fy=0.5))
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
