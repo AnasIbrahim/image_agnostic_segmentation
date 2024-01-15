@@ -12,7 +12,7 @@ torch.manual_seed(0)
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='../demo/rgb_images/000000.png')
+    parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='../demo/rgb_images/000001.png')
     parser.add_argument("--segmentation-method", type=str, help="method to use for segmentation 'maskrcnn' or 'SAM' ", default='maskrcnn')
     parser.add_argument("--maskrcnn-model-path", type=str, help="path to unseen object segmentation model", default='../models/segmentation_mask_rcnn.pth')
     parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model", default='../models/sam_vit_b_01ec64.pth')
@@ -22,18 +22,18 @@ def main():
     parser.add_argument('--classification-method', type=str, help="method to use for classification 'resnet-50-ctl' or 'vit-b-16-ctl'", default='vit-b-16-ctl')
     parser.add_argument("--classification-model-path", type=str, help="path to unseen object classification model", default='../models/classification_vit_b_16_ctl.pth')
     parser.add_argument('--detect-all-objects', dest='detect_all_objects', action='store_true')
-    parser.set_defaults(detect_all_objects=False)
+    parser.set_defaults(detect_all_objects=True)
     parser.add_argument('--detect-one-object', dest='detect_one_object', action='store_true')
-    parser.set_defaults(detect_one_object=True)
-    parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected', default='obj_000016')
-    parser.add_argument('--gallery-images-path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
+    parser.set_defaults(detect_one_object=False)
+    parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected', default='obj_000025')
+    parser.add_argument('--gallery-images-path', type=str, help='path to gallery images folder', default='../demo/objects_gallery_black')
     parser.add_argument('--use-buffered-gallery', dest='use-buffered-gallery', action='store_true')
     parser.set_defaults(use_buffered_gallery=False)
     parser.add_argument('--gallery_buffered_path', type=str, help='path to buffered gallery file', default='../demo/??????.pkl')
 
     parser.add_argument('--compute-suction-pts', dest='compute_suction_pts', action='store_true')
     parser.set_defaults(compute_suction_pts=False)
-    parser.add_argument("--depth-image-path", type=str, help="path to depth image", default='../demo/depth_images/000000.png')
+    parser.add_argument("--depth-image-path", type=str, help="path to depth image", default='../demo/depth_images/000001.png')
     parser.add_argument("--depth-scale", type=int, help="depth image in divided by the scale", default=1000)  # convert from mm to meter - this is done due to depth images being saves in BOP format
     parser.add_argument('-c-matrix', nargs='+',
                         help='camera matrix to convert depth image to point cloud',
@@ -98,8 +98,8 @@ def main():
 
     if args.detect_all_objects:
         print("Classifying all objects")
-        unseen_classifier = UnseenClassifier(device=device, model_path=args.classification_model_path, gallery_images=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, augment_gallery=False, method=args.classification_method)
-        class_predictions = unseen_classifier.classify_all_objects(rgb_img, seg_predictions)
+        unseen_classifier = UnseenClassifier(device=device, model_path=args.classification_model_path, gallery_images=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, augment_gallery=True, method=args.classification_method)
+        class_predictions = unseen_classifier.classify_all_objects(rgb_img, seg_predictions, centroid=False)
         classified_image = draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_images_path))
 
         cv2.imshow('Classify all objects from gallery', cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
@@ -112,7 +112,7 @@ def main():
         obj_name = args.object_name
         print("Searching for object {}".format(obj_name))
         unseen_classifier = UnseenClassifier(device=device, model_path=args.classification_model_path, gallery_images=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, augment_gallery=True, method=args.classification_method)
-        class_predictions = unseen_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name)
+        class_predictions = unseen_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name, centroid=False)
         classified_image = draw_segmented_image(rgb_img, class_predictions, classes=[obj_name])
 
         cv2.imshow('Find a specific object', cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))

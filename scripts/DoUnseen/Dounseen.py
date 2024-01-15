@@ -234,19 +234,26 @@ class UnseenClassifier:
 
         return obj_predictions
 
-    def classify_all_objects(self, rgb_img, predictions):
+    def classify_all_objects(self, rgb_img, predictions, centroid=False):
         classified_predictions = copy.deepcopy(predictions)
-        pred_classes = []
         query_feats = self.extract_query_feats(rgb_img, predictions)
-        for query_id, query_feat in enumerate(query_feats):
-            obj_dists = []
-            for obj_name in self.gallery_obj_names:
-                obj_feats = self.gallery_feats[np.where(self.gallery_classes == self.gallery_obj_names.index(obj_name))[0]]
-                dists = torch.cosine_similarity(query_feat, obj_feats, dim=1)
-                obj_dists.append(np.array(dists.cpu()))
-            obj_dists = [max(obj) for obj in obj_dists]  # TODO check for a threshold where the object is not in query
-            pred_class = obj_dists.index(max(obj_dists))
-            pred_classes.append(pred_class)
+        # if centroid is True, calculate centroid of gallery object features
+        if not centroid:
+            obj_feats = self.gallery_feats
+        if centroid:
+            obj_feats = []
+            for obj_num, obj_name in enumerate(self.gallery_obj_names):
+                obj_feats.append(torch.mean(self.gallery_feats[np.where(self.gallery_classes == obj_num)[0]], dim=0))
+            obj_feats = torch.stack(obj_feats)
+        # calculate cosine similarity between query and gallery objects using torch cosine_similarity
+        dist_matrix = torch.nn.functional.cosine_similarity(query_feats.unsqueeze(0), obj_feats.unsqueeze(1), dim=2)
+        dist_matrix = 1 - dist_matrix
+        dist_matrix = dist_matrix.transpose(0, 1)
+        # find the closest gallery object for each query object
+        matched_queries = torch.argmin(dist_matrix, dim=1)
+        matched_queries = matched_queries.cpu().numpy()
+        # convert matched queries to gallery classes
+        pred_classes = self.gallery_classes[matched_queries]
         classified_predictions['instances'].pred_classes = torch.tensor(pred_classes)
         return classified_predictions
 
