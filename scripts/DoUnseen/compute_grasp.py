@@ -8,22 +8,22 @@ from threading import Thread
 from .vector_quaternion import pose_from_vector3D
 
 
-def make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, predictions):
-    instances = predictions["instances"].to("cpu")
+def make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, seg_predictions):
+    masks = seg_predictions['masks']
 
-    threads = [None] * len(instances)
-    point_clouds = [None] * len(instances)
+    threads = [None] * len(masks)
+    point_clouds = [None] * len(masks)
 
     def make_object_cloud(idx):
-        pred_masks = instances.pred_masks[idx].cpu().detach().numpy()
+        mask = masks[idx]
 
         # mask depth and rgb images
         masked_rgb_img = rgb_img.copy()
         masked_rgb_img = cv2.cvtColor(masked_rgb_img, cv2.COLOR_BGR2RGB)
-        masked_rgb_img[pred_masks == False] = np.array([0, 0, 0])
+        masked_rgb_img[mask == False] = np.array([0, 0, 0])
 
         masked_depth_img = depth_img.copy()
-        masked_depth_img[pred_masks == False] = 0
+        masked_depth_img[mask == False] = 0
         masked_depth_img = np.float32(masked_depth_img)
 
         #cv2.imshow('masked rgb image', masked_rgb_img)
@@ -48,22 +48,22 @@ def make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, predictions):
         point_clouds[idx] = pcd
         return
 
-    for i in range(len(instances)):
+    for i in range(len(masks)):
         threads[i] = Thread(target=make_object_cloud, args=(i,))
         threads[i].start()
 
-    for i in range(len(instances)):
+    for i in range(len(masks)):
         threads[i].join()
 
     return point_clouds
 
 
-def compute_suction_points(predictions, objects_point_clouds):
+def compute_suction_points(seg_predictions, objects_point_clouds):
     # compute best suction point per mask
-    instances = predictions["instances"].to("cpu")
+    masks = seg_predictions['masks']
 
-    threads = [None] * len(instances)
-    suction_pts = [None] * len(instances)
+    threads = [None] * len(masks)
+    suction_pts = [None] * len(masks)
 
     def compute_object_point(cloud_id):
         pcd = objects_point_clouds[cloud_id]
@@ -101,11 +101,11 @@ def compute_suction_points(predictions, objects_point_clouds):
         suction_pts[cloud_id] = (tuple(grasp_position), tuple(grasp_orientation))
         return
 
-    for i in range(len(instances)):
+    for i in range(len(masks)):
         threads[i] = Thread(target=compute_object_point, args=(i,))
         threads[i].start()
 
-    for i in range(len(instances)):
+    for i in range(len(masks)):
         threads[i].join()
 
     return suction_pts

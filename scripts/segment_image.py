@@ -12,7 +12,7 @@ torch.manual_seed(0)
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='../demo/rgb_images/000001.png')
+    parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='../demo/rgb_images/000000.png')
     parser.add_argument("--segmentation-method", type=str, help="method to use for segmentation 'maskrcnn' or 'SAM' ", default='maskrcnn')
     parser.add_argument("--maskrcnn-model-path", type=str, help="path to unseen object segmentation model", default='../models/segmentation_mask_rcnn.pth')
     parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model", default='../models/sam_vit_b_01ec64.pth')
@@ -24,26 +24,26 @@ def main():
     parser.add_argument('--detect-all-objects', dest='detect_all_objects', action='store_true')
     parser.set_defaults(detect_all_objects=True)
     parser.add_argument('--detect-one-object', dest='detect_one_object', action='store_true')
-    parser.set_defaults(detect_one_object=False)
+    parser.set_defaults(detect_one_object=True)
     parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected', default='obj_000025')
-    parser.add_argument('--gallery-images-path', type=str, help='path to gallery images folder', default='../demo/objects_gallery_black')
+    parser.add_argument('--gallery-images-path', type=str, help='path to gallery images folder', default='../demo/objects_gallery')
     parser.add_argument('--use-buffered-gallery', dest='use-buffered-gallery', action='store_true')
     parser.set_defaults(use_buffered_gallery=False)
     parser.add_argument('--gallery_buffered_path', type=str, help='path to buffered gallery file', default='../demo/??????.pkl')
 
     parser.add_argument('--compute-suction-pts', dest='compute_suction_pts', action='store_true')
     parser.set_defaults(compute_suction_pts=False)
-    parser.add_argument("--depth-image-path", type=str, help="path to depth image", default='../demo/depth_images/000001.png')
+    parser.add_argument("--depth-image-path", type=str, help="path to depth image", default='../demo/depth_images/000000.png')
     parser.add_argument("--depth-scale", type=int, help="depth image in divided by the scale", default=1000)  # convert from mm to meter - this is done due to depth images being saves in BOP format
     parser.add_argument('-c-matrix', nargs='+',
                         help='camera matrix to convert depth image to point cloud',
                         default=['1390.53', '0.0', '964.957', '0.0', '1386.99', '522.586', '0.0', '0.0', '1.0']) # HOPE dataset - example images
 
+    parser.add_argument('--batch-size', type=int, help='batch size for classification', default=32)
+
     args = parser.parse_args()
 
-    if torch.cuda.is_available():
-        device = 'cuda'
-    else:
+    if not torch.cuda.is_available():
         print("No GPU found, this package is not optimized for CPU. Exiting ...")
         exit()
 
@@ -88,32 +88,36 @@ def main():
 
     print("Segmenting image")
     rgb_img = cv2.imread(args.rgb_image_path)
-    segmentor = UnseenSegment(device=device, method=args.segmentation_method, sam_model_path=args.sam_model_path, maskrcnn_model_path=args.maskrcnn_model_path)
+    segmentor = UnseenSegment(method=args.segmentation_method, sam_model_path=args.sam_model_path, maskrcnn_model_path=args.maskrcnn_model_path)
     seg_predictions = segmentor.segment_image(rgb_img)
     seg_img = draw_segmented_image(rgb_img, seg_predictions)
 
-    #cv2.imshow('Unseen object segmentation', cv2.resize(seg_img, (0, 0), fx=0.5, fy=0.5))
-    #cv2.waitKey(0)
-    #cv2.destroyAllWindows()
+    cv2.imshow('Unseen object segmentation', cv2.resize(seg_img, (0, 0), fx=0.5, fy=0.5))
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    if args.detect_all_objects or args.detect_one_object:
+        # get image segments from rgb image
+        segments = UnseenSegment.get_image_segments_from_binary_masks(rgb_img, seg_predictions)
+        unseen_classifier = UnseenClassifier(model_path=args.classification_model_path, gallery_images=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, augment_gallery=True, method=args.classification_method, batch_size=args.batch_size)
+        #unseen_classifier.save_gallery(PATH)
 
     if args.detect_all_objects:
         print("Classifying all objects")
-        unseen_classifier = UnseenClassifier(device=device, model_path=args.classification_model_path, gallery_images=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, augment_gallery=True, method=args.classification_method)
-        class_predictions = unseen_classifier.classify_all_objects(rgb_img, seg_predictions, centroid=False)
-        classified_image = draw_segmented_image(rgb_img, class_predictions, classes=os.listdir(args.gallery_images_path))
+        class_predictions = unseen_classifier.classify_all_objects(segments, centroid=False)
+        classified_image = draw_segmented_image(rgb_img, seg_predictions, class_predictions, classes_names=os.listdir(args.gallery_images_path))
 
         cv2.imshow('Classify all objects from gallery', cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-        #zero_shot_classifier.save_gallery(PATH)
-
     if args.detect_one_object:
         obj_name = args.object_name
         print("Searching for object {}".format(obj_name))
-        unseen_classifier = UnseenClassifier(device=device, model_path=args.classification_model_path, gallery_images=args.gallery_images_path, gallery_buffered_path=args.gallery_buffered_path, augment_gallery=True, method=args.classification_method)
-        class_predictions = unseen_classifier.find_object(rgb_img, seg_predictions, obj_name=obj_name, centroid=False)
-        classified_image = draw_segmented_image(rgb_img, class_predictions, classes=[obj_name])
+        class_prediction = unseen_classifier.find_object(segments, obj_name=obj_name, centroid=False)
+        class_seg_prediction = {'masks': [seg_predictions['masks'][class_prediction[0]]], 'bboxes': [seg_predictions['bboxes'][class_prediction[0]]]}
+        class_prediction = [0]  # only one mask in the visualization
+        classified_image = draw_segmented_image(rgb_img, class_seg_prediction, classes_predictions=class_prediction, classes_names=[obj_name])
 
         cv2.imshow('Find a specific object', cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
         cv2.waitKey(0)
