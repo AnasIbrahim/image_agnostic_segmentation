@@ -17,14 +17,14 @@ def make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, seg_predictions)
     def make_object_cloud(idx):
         mask = masks[idx]
 
-        # mask depth and rgb images
+        # apply mask to rgb and depth images
         masked_rgb_img = rgb_img.copy()
+        masked_rgb_img[mask == False] = (0, 0, 0)
         masked_rgb_img = cv2.cvtColor(masked_rgb_img, cv2.COLOR_BGR2RGB)
-        masked_rgb_img[mask == False] = np.array([0, 0, 0])
 
         masked_depth_img = depth_img.copy()
         masked_depth_img[mask == False] = 0
-        masked_depth_img = np.float32(masked_depth_img)
+        masked_depth_img = masked_depth_img.astype(np.float32)
 
         #cv2.imshow('masked rgb image', masked_rgb_img)
         #cv2.waitKey(0)
@@ -123,11 +123,11 @@ def visualize_suction_points(rgb_img, c_matrix, suction_pts):
         # project 3D grasp point on image
         arrow_cloud = grasp_arrow.sample_points_uniformly(number_of_points=50000)
         arrow_point = np.asarray(arrow_cloud.points)
-        rvec = np.array([0, 0, 0], np.float)
-        tvec = np.array([0, 0, 0], np.float)
+        rvec = np.array([0, 0, 0], float)
+        tvec = np.array([0, 0, 0], float)
         impoints, _ = cv2.projectPoints(arrow_point, rvec, tvec, c_matrix, None)
         impoints = np.squeeze(impoints, axis=1)
-        impoints = impoints.astype(np.int)
+        impoints = impoints.astype(int)
         impoints = (impoints[:,1],impoints[:,0])
 
         # mask rgb with the grasp point
