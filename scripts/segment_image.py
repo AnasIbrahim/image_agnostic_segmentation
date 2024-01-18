@@ -4,8 +4,8 @@ import numpy as np
 import cv2
 import argparse
 
-from DoUnseen.Dounseen import UnseenSegment, UnseenClassifier, draw_segmented_image
-from DoUnseen import compute_grasp
+from dounseen.dounseen import UnseenSegment, UnseenClassifier, draw_segmented_image
+from dounseen import compute_grasp
 
 import torch
 torch.manual_seed(0)
