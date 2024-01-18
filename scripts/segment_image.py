@@ -14,13 +14,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='../demo/rgb_images/000000.png')
     parser.add_argument("--segmentation-method", type=str, help="method to use for segmentation 'maskrcnn' or 'SAM' ", default='maskrcnn')
-    parser.add_argument("--maskrcnn-model-path", type=str, help="path to unseen object segmentation model", default='../models/segmentation_mask_rcnn.pth')
-    parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model", default='../models/sam_vit_b_01ec64.pth')
+    parser.add_argument("--maskrcnn-model-path", type=str, help="path to unseen object segmentation model", default='../models/segmentation/segmentation_mask_rcnn.pth')
+    parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model", default='/path/to/sam/model.pth')
     parser.add_argument("--filter-sam-predictions", dest='filter_sam_predictions', action='store_true')
     parser.set_defaults(filter_sam_predictions=True)
 
     parser.add_argument('--classification-method', type=str, help="method to use for classification 'resnet-50-ctl' or 'vit-b-16-ctl'", default='vit-b-16-ctl')
-    parser.add_argument("--classification-model-path", type=str, help="path to unseen object classification model", default='../models/classification_vit_b_16_ctl.pth')
+    parser.add_argument("--classification-model-path", type=str, help="path to unseen object classification model", default='../models/classification/classification_vit_b_16_ctl.pth')
     parser.add_argument('--detect-all-objects', dest='detect_all_objects', action='store_true')
     parser.set_defaults(detect_all_objects=True)
     parser.add_argument('--detect-one-object', dest='detect_one_object', action='store_true')
@@ -39,7 +39,7 @@ def main():
                         help='camera matrix to convert depth image to point cloud',
                         default=['1390.53', '0.0', '964.957', '0.0', '1386.99', '522.586', '0.0', '0.0', '1.0']) # HOPE dataset - example images
 
-    parser.add_argument('--batch-size', type=int, help='batch size for classification', default=32)
+    parser.add_argument('--batch-size', type=int, help='batch size for classification', default=100)
 
     args = parser.parse_args()
 
@@ -53,7 +53,7 @@ def main():
         else:
             print("Mask R-CNN model path doesn't exist, please download the segmentation model. Exiting ...")
             exit()
-    elif args.segmentation_method == 'SAM' and not os.path.exists(args.sam_model_path):
+    elif args.segmentation_method == 'SAM':
         if os.path.exists(args.sam_model_path):
             args.sam_model_path = os.path.abspath(args.sam_model_path)
         else:
