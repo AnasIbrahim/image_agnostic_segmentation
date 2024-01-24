@@ -5,7 +5,7 @@ import copy
 
 from threading import Thread
 
-from .vector_quaternion import pose_from_vector3D
+from .utils import pose_from_vector3D
 
 
 def make_predicted_objects_clouds(rgb_img, depth_img, c_matrix, seg_predictions):

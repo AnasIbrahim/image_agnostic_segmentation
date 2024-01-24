@@ -4,8 +4,9 @@ import numpy as np
 import cv2
 import argparse
 
-from dounseen.dounseen import UnseenSegment, UnseenClassifier, draw_segmented_image
+from dounseen.dounseen import UnseenSegment, UnseenClassifier
 from dounseen import compute_grasp
+from dounseen import utils
 
 import torch
 torch.manual_seed(0)
@@ -13,9 +14,9 @@ torch.manual_seed(0)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='../demo/rgb_images/000000.png')
-    parser.add_argument("--segmentation-method", type=str, help="method to use for segmentation 'maskrcnn' or 'SAM' ", default='maskrcnn')
+    parser.add_argument("--segmentation-method", type=str, help="method to use for segmentation 'maskrcnn' or 'SAM' ", default='SAM')
     parser.add_argument("--maskrcnn-model-path", type=str, help="path to unseen object segmentation model", default='../models/segmentation/segmentation_mask_rcnn.pth')
-    parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model", default='/path/to/sam/model.pth')
+    parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model", default='../models/sam_vit_b_01ec64.pth')  # TODO add instruction to download model
     parser.add_argument("--filter-sam-predictions", dest='filter_sam_predictions', action='store_true')
     parser.set_defaults(filter_sam_predictions=True)
 
@@ -88,13 +89,11 @@ def main():
 
     print("Segmenting image")
     rgb_img = cv2.imread(args.rgb_image_path)
-    segmentor = UnseenSegment(method=args.segmentation_method, sam_model_path=args.sam_model_path, maskrcnn_model_path=args.maskrcnn_model_path)
+    segmentor = UnseenSegment(method=args.segmentation_method, sam_model_path=args.sam_model_path, maskrcnn_model_path=args.maskrcnn_model_path, filter_sam_predictions=args.filter_sam_predictions)
     seg_predictions = segmentor.segment_image(rgb_img)
-    seg_img = draw_segmented_image(rgb_img, seg_predictions)
+    seg_img = utils.draw_segmented_image(rgb_img, seg_predictions)
 
-    cv2.imshow('Unseen object segmentation', cv2.resize(seg_img, (0, 0), fx=0.5, fy=0.5))
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    utils.show_wait_destroy("Unseen object segmentation", cv2.resize(seg_img, (0, 0), fx=0.5, fy=0.5))
 
     if args.detect_all_objects or args.detect_one_object:
         # get image segments from rgb image
@@ -105,23 +104,19 @@ def main():
     if args.detect_all_objects:
         print("Classifying all objects")
         class_predictions = unseen_classifier.classify_all_objects(segments, centroid=False)
-        classified_image = draw_segmented_image(rgb_img, seg_predictions, class_predictions, classes_names=os.listdir(args.gallery_images_path))
+        classified_image = utils.draw_segmented_image(rgb_img, seg_predictions, class_predictions, classes_names=os.listdir(args.gallery_images_path))
 
-        cv2.imshow('Classify all objects from gallery', cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        utils.show_wait_destroy("Classify all objects from gallery", cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
 
     if args.detect_one_object:
         obj_name = args.object_name
         print("Searching for object {}".format(obj_name))
-        class_prediction = unseen_classifier.find_object(segments, obj_name=obj_name, centroid=False)
+        class_prediction = unseen_classifier.find_object(segments, obj_name=obj_name, method='max')
         class_seg_prediction = {'masks': [seg_predictions['masks'][class_prediction[0]]], 'bboxes': [seg_predictions['bboxes'][class_prediction[0]]]}
         class_prediction = [0]  # only one mask in the visualization
-        classified_image = draw_segmented_image(rgb_img, class_seg_prediction, classes_predictions=class_prediction, classes_names=[obj_name])
+        classified_image = utils.draw_segmented_image(rgb_img, class_seg_prediction, classes_predictions=class_prediction, classes_names=[obj_name])
 
-        cv2.imshow('Find a specific object', cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        utils.show_wait_destroy("Find a specific object", cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
 
     # show suction points for all objects
     if args.compute_suction_pts:
@@ -130,9 +125,7 @@ def main():
         suction_pts = compute_grasp.compute_suction_points(seg_predictions, objects_point_clouds)
         suction_pts_image = compute_grasp.visualize_suction_points(seg_img, c_matrix, suction_pts)
 
-        cv2.imshow('Suction points for all objects', cv2.resize(suction_pts_image, (0, 0), fx=0.5, fy=0.5))
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        utils.show_wait_destroy("Suction points for all objects", cv2.resize(suction_pts_image, (0, 0), fx=0.5, fy=0.5))
 
 
 if __name__ == '__main__':
