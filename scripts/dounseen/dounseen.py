@@ -16,8 +16,9 @@ from . import utils
 
 
 class UnseenSegment:
-    def __init__(self, method='SAM', sam_model_path=None, maskrcnn_model_path=None, mask_rcnn_confidence=0.7, filter_sam_predictions=False):
+    def __init__(self, method='SAM', sam_model_path=None, maskrcnn_model_path=None, mask_rcnn_confidence=0.7, filter_sam_predictions=False, smallest_segment_size=None):
         self.method = method
+        self.smallest_segment_size = smallest_segment_size
         if torch.cuda.is_available():
             device = 'cuda'
         else:
@@ -40,7 +41,7 @@ class UnseenSegment:
                 stability_score_offset=1.0,
                 box_nms_thresh=0.7,
                 crop_n_layers=0,
-                crop_nms_thresh=0.7-0.2,
+                crop_nms_thresh=0.7,
                 crop_overlap_ratio=512 / 1500,
                 crop_n_points_downscale_factor=1,
                 point_grids=None,
@@ -59,7 +60,6 @@ class UnseenSegment:
             detectron2_predictions = self.predictor(img)
             maskrcnn_predictions = self.formulate_maskrcnn_predictions(detectron2_predictions)
             return maskrcnn_predictions
-
         elif self.method == 'SAM':
             masks = self.mask_generator.generate(img)
             masks = sorted(masks, key=(lambda x: x['area']), reverse=True)  # smaller masks to be merged first
@@ -73,6 +73,8 @@ class UnseenSegment:
                 binary_masks.append(binary_mask)
                 # convet bbox from XYWH to X1Y1X2Y2
                 bbox = [mask['bbox'][0], mask['bbox'][1], mask['bbox'][0]+mask['bbox'][2], mask['bbox'][1]+mask['bbox'][3]]
+                # convert bbox to int
+                bbox = [int(val) for val in bbox]
                 bboxes.append(bbox)
             sam_predictions = {'masks': binary_masks, 'bboxes': bboxes}
             if self.filter_sam_predictions:
@@ -80,7 +82,16 @@ class UnseenSegment:
                 detectron2_predictions = self.predictor(img)
                 maskrcnn_predictions = self.formulate_maskrcnn_predictions(detectron2_predictions)
                 sam_predictions = self.sam_filter_background(maskrcnn_predictions, sam_predictions)
-                sam_predictions = self.sam_merge_small_masks(sam_predictions)
+                #sam_predictions = self.sam_merge_small_masks(sam_predictions)  # TODO this would keep undersegmented masks so it is better to not use it and depend on the classification threshold to remove small masks
+            if self.smallest_segment_size is not None:
+                # filter out small masks
+                filtered_masks = []
+                filtered_bboxes = []
+                for idx, mask in enumerate(sam_predictions['masks']):
+                    if np.sum(mask) > self.smallest_segment_size:
+                        filtered_masks.append(mask)
+                        filtered_bboxes.append(sam_predictions['bboxes'][idx])
+                sam_predictions = {'masks': filtered_masks, 'bboxes': filtered_bboxes}
             return sam_predictions
 
     def make_maskrcnn_predictor(self, maskrcnn_model_path, mask_rcnn_confidence=0.7, device='cuda'):
@@ -344,26 +355,21 @@ class UnseenClassifier:
 
         return matched_query, score
 
-    def classify_all_objects(self, segments, centroid=False):
+    def classify_all_objects(self, segments, threshold=0.6):
         query_feats = self.extract_query_feats(segments)
-        # if centroid is True, calculate centroid of gallery object features
-        if not centroid:
-            obj_feats = self.gallery_feats
-        if centroid:
-            obj_feats = []
-            for obj_num, obj_name in enumerate(self.gallery_obj_names):
-                obj_feats.append(torch.mean(self.gallery_feats[np.where(self.gallery_classes == obj_num)[0]], dim=0))
-            obj_feats = torch.stack(obj_feats)
+        obj_feats = self.gallery_feats
         # calculate cosine similarity between query and gallery objects using torch cosine_similarity
         dist_matrix = torch.nn.functional.cosine_similarity(query_feats.unsqueeze(0), obj_feats.unsqueeze(1), dim=2)
-        dist_matrix = 1 - dist_matrix
         dist_matrix = dist_matrix.transpose(0, 1)
         # find the closest gallery object for each query object
-        matched_queries = torch.argmin(dist_matrix, dim=1)
-        matched_queries = matched_queries.cpu().numpy()
+        matches = torch.max(dist_matrix, dim=1)
+        matched_queries = matches.indices.detach().cpu().numpy()
+        pred_scores = matches.values.detach().cpu().numpy()
         # convert matched queries to gallery classes
         pred_classes = self.gallery_classes[matched_queries]
-        return pred_classes
+        # set predictions with distance less than threshold to -1
+        pred_classes[np.where(pred_scores < threshold)] = -1
+        return pred_classes, pred_scores
 
     @torch.no_grad()
     def extract_query_feats(self, segments):
