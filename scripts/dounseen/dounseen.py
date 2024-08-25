@@ -188,7 +188,6 @@ class UnseenClassifier:
             batch_feats = self.model_backbone(batch)
             self.gallery_feats.append(batch_feats)
         self.gallery_feats = torch.cat(self.gallery_feats)
-        #self.gallery_feats = F.normalize(self.gallery_feats, p=2, dim=1)
 
     @torch.no_grad()
     def find_object(self, segments, obj_name, method='max'):
@@ -199,53 +198,27 @@ class UnseenClassifier:
             obj_feats = torch.mean(obj_feats, dim=0)
             # calculate cosine similarity between query and gallery objects using torch cdist
             dist_matrix = torch.nn.functional.cosine_similarity(query_feats, obj_feats.unsqueeze(0), dim=1)
-            dist_matrix = 1 - dist_matrix
-            # find the id of the closest distance from the 1-D array
-            matched_query = torch.where(dist_matrix == torch.min(dist_matrix))[0]
-            print(torch.argsort(dist_matrix.squeeze()))
-        elif method == 'weighted-max':
-            # calculate cosine similarity between query and gallery objects using torch cdist
-            dist_matrix = torch.nn.functional.cosine_similarity(query_feats.unsqueeze(0), obj_feats.unsqueeze(1), dim=2)
-            dist_matrix = 1 - dist_matrix
-            dist_matrix = dist_matrix.transpose(0, 1)
-            # get sorted idx of closest dists
-            arr = dist_matrix.cpu().numpy()
-            min_dists = np.dstack(np.unravel_index(np.argsort(arr.ravel()), arr.shape)).squeeze(0)[:, 0]
-            # only use the top 20 closest dists
-            top_count = 20
-            min_dists = min_dists[:top_count]
-            # find unique values in min_dists
-            unique, counts = np.unique(min_dists, return_counts=True)
-            # calculate weighted score for each unique value: score = sum(index) * value / count
-            scores = []
-            for idx, unique_val in enumerate(unique):
-                score = np.sum(np.where(min_dists == unique_val)) * unique_val / counts[idx]
-                scores.append(score)
-            # highest score is the matched query
-            matched_query = unique[np.argmin(scores)]
-            # if matched query is not unique, choose the first one
-            if len(np.where(scores == np.min(scores))[0]) > 1:
-                matched_query = np.where(scores == np.min(scores))[0][0]
+            # find the id of the highest similarity from the 1-D array
+            matched_query = torch.where(dist_matrix == torch.max(dist_matrix))[0]
+            score = torch.max(dist_matrix)
         elif method == 'max':
             # calculate cosine similarity between query and gallery objects using torch cdist
             dist_matrix = torch.nn.functional.cosine_similarity(query_feats.unsqueeze(0), obj_feats.unsqueeze(1), dim=2)
-            dist_matrix = 1 - dist_matrix
             dist_matrix = dist_matrix.transpose(0, 1)
-            # find the id of the closest distance from the 2D array
-            matched_query = torch.where(dist_matrix == torch.min(dist_matrix))[0]
-            # if matched query is not unique, choose the first one
-            if len(matched_query) > 1:
-                matched_query = matched_query[0]
-            score = torch.min(dist_matrix)
+            # find the id of the biggest similarity from the 2D array
+            matched_query = torch.where(dist_matrix == torch.max(dist_matrix))[0]
+            score = torch.max(dist_matrix)
         else:
-            raise Exception("Invalid classificaiton method. Use 'max', 'centroid' or 'trimmed-mean'")
+            raise Exception("Invalid classificaiton method. Use 'max' or 'centroid'")
 
+        # TODO resolve using both centroid and max
         # if dimension of matched query is not 1, then choose the first one
         # this will happen when 2 vectors have the exact same distance, but this would rarely rarely happen
         #if matched_query.shape[0] > 1:
-        #    #print("Warning: more than one image had the exact same score. Matched query: " + str(matched_query))
-        #    matched_query = matched_query[0]
-        # TODO when this happens take choose object with closer centroid
+        #    calculate using the other method
+        # temporary solution just return the first object
+        if len(matched_query) > 1:
+            matched_query = matched_query[0]
 
         return matched_query, score
 
@@ -270,7 +243,7 @@ class UnseenClassifier:
         query_imgs = copy.deepcopy(segments)
         # TODO do i need resize and pad
         #query_imgs = [utils.resize_and_pad(query_img, (384,384), (255,255,255)) for query_img in query_imgs]
-        query_imgs = torch.stack([self.transform(cv2.cvtColor(query_img, cv2.COLOR_BGR2RGB)) for query_img in query_imgs])  # TODO that converting from BGR to RGB is correct
+        query_imgs = torch.stack([self.transform(query_img) for query_img in query_imgs])
         query_imgs = query_imgs.to(device=self.device)
         # split image to fit into GPU memory
         # probably number of query images is small enough to fit into GPU memory at once but just to be sure
@@ -280,5 +253,4 @@ class UnseenClassifier:
             batch_feats = self.model_backbone(batch)
             query_feats.append(batch_feats)
         query_feats = torch.cat(query_feats)
-        #query_feats = F.normalize(query_feats, p=2, dim=1)
         return query_feats
