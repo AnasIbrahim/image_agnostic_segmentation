@@ -4,8 +4,7 @@ import numpy as np
 import cv2
 import argparse
 
-from dounseen.dounseen import UnseenSegment, UnseenClassifier
-from dounseen import compute_grasp
+from dounseen.dounseen import UnseenClassifier
 from dounseen import utils
 
 import torch
@@ -14,7 +13,6 @@ torch.manual_seed(0)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='../demo/rgb_images/000000.png')
-    parser.add_argument("--segmentation-method", type=str, help="method to use for segmentation 'maskrcnn' or 'SAM' ", default='SAM')
     parser.add_argument("--maskrcnn-model-path", type=str, help="path to unseen object segmentation model", default='../models/segmentation/segmentation_mask_rcnn.pth')
     parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model", default='../models/sam_vit_b_01ec64.pth')  # TODO add instruction to download model
     parser.add_argument("--filter-sam-predictions", dest='filter_sam_predictions', action='store_true')
@@ -33,14 +31,6 @@ def main():
     parser.add_argument('--use-buffered-gallery', dest='use-buffered-gallery', action='store_true')
     parser.set_defaults(use_buffered_gallery=False)
     parser.add_argument('--gallery_buffered_path', type=str, help='path to buffered gallery file', default='../demo/??????.pkl')
-
-    parser.add_argument('--compute-suction-pts', dest='compute_suction_pts', action='store_true')
-    parser.set_defaults(compute_suction_pts=False)
-    parser.add_argument("--depth-image-path", type=str, help="path to depth image", default='../demo/depth_images/000000.png')
-    parser.add_argument("--depth-scale", type=int, help="depth image in divided by the scale", default=1000)  # convert from mm to meter - this is done due to depth images being saves in BOP format
-    parser.add_argument('-c-matrix', nargs='+',
-                        help='camera matrix to convert depth image to point cloud',
-                        default=['1390.53', '0.0', '964.957', '0.0', '1386.99', '522.586', '0.0', '0.0', '1.0']) # HOPE dataset - example images
 
     parser.add_argument('--batch-size', type=int, help='batch size for classification', default=100)
 
@@ -143,15 +133,6 @@ def main():
         classified_image = utils.draw_segmented_image(rgb_img, class_seg_prediction, classes_predictions=class_prediction, classes_names=[obj_name])
 
         utils.show_wait_destroy("Find a specific object", cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
-
-    # show suction points for all objects
-    if args.compute_suction_pts:
-        print("Computing suction grasps for all objects")
-        objects_point_clouds = compute_grasp.make_predicted_objects_clouds(rgb_img, depth_image, c_matrix, seg_predictions)
-        suction_pts = compute_grasp.compute_suction_points(seg_predictions, objects_point_clouds)
-        suction_pts_image = compute_grasp.visualize_suction_points(seg_img, c_matrix, suction_pts)
-
-        utils.show_wait_destroy("Suction points for all objects", cv2.resize(suction_pts_image, (0, 0), fx=0.5, fy=0.5))
 
 
 if __name__ == '__main__':

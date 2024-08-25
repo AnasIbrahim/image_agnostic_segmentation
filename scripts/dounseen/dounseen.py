@@ -179,9 +179,7 @@ class UnseenSegment:
         return sam_predictions
 
     @staticmethod
-    def get_image_segments_from_binary_masks(rgb_image, seg_predictions):
-        masks = seg_predictions['masks']
-        bboxes = seg_predictions['bboxes']
+    def get_image_segments_from_binary_masks(rgb_image, masks, bboxes):
         segments = []
         for idx in range(len(masks)):
             mask = masks[idx]
@@ -195,28 +193,24 @@ class UnseenSegment:
 
 
 class UnseenClassifier:
-    def __init__(self, model_path, gallery_images=None, gallery_buffered_path=None, augment_gallery=False, method='vit-b-16-ctl', batch_size=32):
+    def __init__(self, model_path, gallery_images=None, gallery_buffered_path=None, augment_gallery=False, batch_size=32):
         if torch.cuda.is_available():
             self.device = 'cuda'
         else:
             # throw exception no GPU found
             raise Exception("No GPU found, this package is not optimized for CPU.")
 
-        self.method = method
         self.augment_gallery = augment_gallery
         self.batch_size = batch_size
         # load model weights
         model_weights = torch.load(model_path, map_location=self.device)
-        if method == 'vit-b-16-ctl':
-            self.model_backbone = torchvision.models.vit_b_16(weights=None)
-        elif method == 'resnet-50-ctl':
-            self.model_backbone = torchvision.models.resnet50(weights=None)
-        else:
-            raise Exception("Invalid classification method")
+        # TODO load SWAG model without downloading
+        # load IMAGENET1K_SWAG_E2E_V1
+        self.model_backbone = torchvision.models.vit_b_16(weights='IMAGENET1K_SWAG_E2E_V1')
         self.model_backbone.load_state_dict(model_weights)
         self.model_backbone.to(self.device)
 
-        self.feed_shape = [3, 224, 224]
+        self.feed_shape = [3, 384, 384]
         self.transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -374,7 +368,8 @@ class UnseenClassifier:
     @torch.no_grad()
     def extract_query_feats(self, segments):
         query_imgs = copy.deepcopy(segments)
-        query_imgs = [utils.resize_and_pad(query_img, (224,224), (255,255,255)) for query_img in query_imgs]
+        # TODO do i need resize and pad
+        #query_imgs = [utils.resize_and_pad(query_img, (384,384), (255,255,255)) for query_img in query_imgs]
         query_imgs = torch.stack([self.transform(cv2.cvtColor(query_img, cv2.COLOR_BGR2RGB)) for query_img in query_imgs])  # TODO that converting from BGR to RGB is correct
         query_imgs = query_imgs.to(device=self.device)
         # split image to fit into GPU memory

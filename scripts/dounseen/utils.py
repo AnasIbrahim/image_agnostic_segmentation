@@ -3,14 +3,12 @@ import numpy as np
 import copy
 
 
-def draw_segmented_image(rgb_img, seg_predictions, classes_predictions=None, classes_names=None):
+def draw_segmented_image(rgb_img, masks, bboxes, classes_predictions=None, classes_names=None):
     """
     draws a list of binary masks over an image.
     If predicted classes are provided, the masks are colored according to the class.
     """
     img = copy.deepcopy(rgb_img)
-    masks = seg_predictions['masks']
-    bboxes = seg_predictions['bboxes']
     opacity = 0.5
     for idx in range(len(masks)):
         mask = masks[idx]
