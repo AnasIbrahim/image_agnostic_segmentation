@@ -12,8 +12,7 @@ import torchvision
 from torchvision import transforms
 import torch.nn.functional as F
 
-from . import utils
-
+import utils
 
 class BackgroundFilter:
     def __init__(self, maskrcnn_model_path=None, mask_rcnn_confidence=0.7):

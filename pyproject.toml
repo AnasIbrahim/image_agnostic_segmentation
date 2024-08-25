@@ -1,0 +1,12 @@
+[project]
+name = "dounseen"
+version = "0.3.0"
+description = "A brief description of your package"
+readme = "README.md"
+requires-python = ">=3.6"
+dependencies = [
+    "torch>=2.3.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["dounseen"]
