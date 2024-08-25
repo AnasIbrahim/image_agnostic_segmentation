@@ -15,84 +15,32 @@ import torch.nn.functional as F
 from . import utils
 
 
-class UnseenSegment:
-    def __init__(self, method='SAM', sam_model_path=None, maskrcnn_model_path=None, mask_rcnn_confidence=0.7, filter_sam_predictions=False, smallest_segment_size=None):
-        self.method = method
-        self.smallest_segment_size = smallest_segment_size
+class BackgroundFilter:
+    def __init__(self, maskrcnn_model_path=None, mask_rcnn_confidence=0.7):
         if torch.cuda.is_available():
             device = 'cuda'
         else:
             # throw exception no GPU found
             raise Exception("No GPU found, this package is not optimized for CPU.")
 
-        if self.method == 'maskrcnn':
-            self.predictor = self.make_maskrcnn_predictor(maskrcnn_model_path, mask_rcnn_confidence, device)
-        elif self.method == 'SAM':
-            from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
-            sam = sam_model_registry["vit_b"](checkpoint=sam_model_path)
-            sam.to(device=device)
-            self.filter_sam_predictions = filter_sam_predictions
-            self.mask_generator = SamAutomaticMaskGenerator(
-                model=sam,
-                points_per_side=70,
-                points_per_batch=64,
-                pred_iou_thresh=0.88,
-                stability_score_thresh=0.95-0.1,
-                stability_score_offset=1.0,
-                box_nms_thresh=0.7,
-                crop_n_layers=0,
-                crop_nms_thresh=0.7,
-                crop_overlap_ratio=512 / 1500,
-                crop_n_points_downscale_factor=1,
-                point_grids=None,
-                min_mask_region_area=500,
-                output_mode="coco_rle"
-            )
-            if self.filter_sam_predictions:
-                # make maskrcnn predictor to filter background
-                self.make_maskrcnn_predictor(maskrcnn_model_path, mask_rcnn_confidence, device)
-        else:
-            # throw exception method doesn't exist
-            raise Exception("Invalid segmentation method")
+        self.predictor = self.make_maskrcnn_predictor(maskrcnn_model_path, mask_rcnn_confidence, device)
 
-    def segment_image(self, img):
-        if self.method == 'maskrcnn':
-            detectron2_predictions = self.predictor(img)
-            maskrcnn_predictions = self.formulate_maskrcnn_predictions(detectron2_predictions)
-            return maskrcnn_predictions
-        elif self.method == 'SAM':
-            masks = self.mask_generator.generate(img)
-            masks = sorted(masks, key=(lambda x: x['area']), reverse=True)  # smaller masks to be merged first
-            binary_masks = []
-            bboxes = []
-            # convert coco rle mask to binary mask
-            for mask in masks:
-                binary_mask = pycocotools.mask.decode(mask['segmentation'])
-                # convert mask to bool
-                binary_mask = binary_mask.astype(bool)
-                binary_masks.append(binary_mask)
-                # convet bbox from XYWH to X1Y1X2Y2
-                bbox = [mask['bbox'][0], mask['bbox'][1], mask['bbox'][0]+mask['bbox'][2], mask['bbox'][1]+mask['bbox'][3]]
-                # convert bbox to int
-                bbox = [int(val) for val in bbox]
-                bboxes.append(bbox)
-            sam_predictions = {'masks': binary_masks, 'bboxes': bboxes}
-            if self.filter_sam_predictions:
-                # get maskrcnn predictions
-                detectron2_predictions = self.predictor(img)
-                maskrcnn_predictions = self.formulate_maskrcnn_predictions(detectron2_predictions)
-                sam_predictions = self.sam_filter_background(maskrcnn_predictions, sam_predictions)
-                #sam_predictions = self.sam_merge_small_masks(sam_predictions)  # TODO this would keep undersegmented masks so it is better to not use it and depend on the classification threshold to remove small masks
-            if self.smallest_segment_size is not None:
-                # filter out small masks
-                filtered_masks = []
-                filtered_bboxes = []
-                for idx, mask in enumerate(sam_predictions['masks']):
-                    if np.sum(mask) > self.smallest_segment_size:
-                        filtered_masks.append(mask)
-                        filtered_bboxes.append(sam_predictions['bboxes'][idx])
-                sam_predictions = {'masks': filtered_masks, 'bboxes': filtered_bboxes}
-            return sam_predictions
+    def filter_background_annotations(self, img, masks, bboxes):
+        sam_predictions = {'masks': masks, 'bboxes': bboxes}
+        # get maskrcnn predictions
+        detectron2_predictions = self.predictor(img)
+        maskrcnn_predictions = self.formulate_maskrcnn_predictions(detectron2_predictions)
+        sam_predictions = self.filter_background(maskrcnn_predictions, sam_predictions)
+        if self.smallest_segment_size is not None:
+            # filter out small masks
+            filtered_masks = []
+            filtered_bboxes = []
+            for idx, mask in enumerate(sam_predictions['masks']):
+                if np.sum(mask) > self.smallest_segment_size:
+                    filtered_masks.append(mask)
+                    filtered_bboxes.append(sam_predictions['bboxes'][idx])
+            sam_predictions = {'masks': filtered_masks, 'bboxes': filtered_bboxes}
+        return sam_predictions
 
     def make_maskrcnn_predictor(self, maskrcnn_model_path, mask_rcnn_confidence=0.7, device='cuda'):
         from detectron2 import model_zoo
@@ -127,7 +75,7 @@ class UnseenSegment:
         predictions = {'masks': masks, 'bboxes': bboxes}
         return predictions
 
-    def sam_filter_background(self, maskrcnn_predictions, sam_predictions):
+    def filter_background(self, maskrcnn_predictions, sam_predictions):
         # combine maskrcnn predictions in one mask
         maskrcnn_mask = np.zeros(maskrcnn_predictions['masks'][0].shape, dtype=bool)
         for mask in maskrcnn_predictions['masks']:
@@ -142,54 +90,6 @@ class UnseenSegment:
                 filtered_bboxes.append(sam_predictions['bboxes'][idx])
         sam_predictions = {'masks': filtered_masks, 'bboxes': filtered_bboxes}
         return sam_predictions
-
-    def sam_merge_small_masks(self, sam_predictions):
-        '''
-        if a mask is mostly (>90%) inside another mask, then keep the bigger mask
-        This is due to segment anything generating small masks inside detected bigger objects
-        function assumes that masks are sorted by area
-        '''
-        # TODO current logic would not handle 3 masks hierarchy
-        masks = sam_predictions['masks']
-        bboxes = sam_predictions['bboxes']
-        kept_masks = []
-        removed_masks = []
-        # iterate over masks from biggest to smallest
-        for idx in range(len(masks)-1):
-            mask = masks[idx]
-            # iterate over the rest of the masks
-            for idx2 in range(idx+1, len(masks)):
-                mask2 = masks[idx2]
-                # if mask2 is mostly (>90%) inside mask, then remove it
-                if np.sum(np.logical_and(mask2, mask)) / np.sum(mask2) > 0.9:
-                    if idx not in removed_masks:
-                        kept_masks.append(idx)
-                        removed_masks.append(idx2)
-            # if there are no masks inside mask, then add mask to kept masks
-            if idx not in removed_masks:
-                kept_masks.append(idx)
-        # if last mask is not removed, then add it to kept masks
-        if len(masks) not in removed_masks:
-            kept_masks.append(len(masks)-1)
-        kept_masks = np.unique(kept_masks)
-        # replace mask with merged mask
-        masks = [masks[idx] for idx in kept_masks]
-        bboxes = [bboxes[idx] for idx in kept_masks]
-        sam_predictions = {'masks': masks, 'bboxes': bboxes}
-        return sam_predictions
-
-    @staticmethod
-    def get_image_segments_from_binary_masks(rgb_image, masks, bboxes):
-        segments = []
-        for idx in range(len(masks)):
-            mask = masks[idx]
-            bbox = bboxes[idx]
-            # add mask to the image with background being white
-            segment = np.ones(rgb_image.shape, dtype=np.uint8) * 255
-            segment[mask] = rgb_image[mask]
-            segment = segment[bbox[1]:bbox[3], bbox[0]:bbox[2]]
-            segments.append(segment)
-        return segments
 
 
 class UnseenClassifier:
