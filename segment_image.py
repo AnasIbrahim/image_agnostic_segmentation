@@ -3,6 +3,7 @@ import os
 import numpy as np
 import cv2
 import argparse
+from PIL import Image
 
 from sam2.build_sam import build_sam2
 from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
@@ -22,7 +23,7 @@ def main():
     parser.add_argument("--classification-model-path", type=str, help="path to unseen object classification model", default='./models/dounseen/vit_b_16_epoch_199_augment.pth')
     # Classifications parameters
     parser.add_argument("--classification-threshold", type=float, help="threshold for classification of all objects", default=0.5)
-    parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected when detecting one object', default='obj_000025')
+    parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected when detecting one object', default='obj_000001')
     parser.add_argument('--classification-batch-size', type=int, help='batch size for classification', default=80)
 
     args = parser.parse_args()
@@ -40,8 +41,8 @@ def main():
     args.classification_model_path = os.path.abspath(args.classification_model_path)
 
     # load rgb image
-    rgb_img = cv2.imread(args.rgb_image_path)
-    rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
+    rgb_img = Image.open(args.rgb_image_path)
+    rgb_img = np.array(rgb_img.convert("RGB"))
 
     print("Create and run Sam2")
     sam2_mask_generator = create_sam2(args.sam_model_path, device=device)
