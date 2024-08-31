@@ -91,3 +91,30 @@ def get_image_segments_from_binary_masks(rgb_image, masks, bboxes):
         segment = segment[bbox[1]:bbox[3], bbox[0]:bbox[2]]
         segments.append(segment)
     return segments
+
+
+def reformat_sam2_output(sam2_output):
+    masks = []
+    bboxes = []
+    for idx in range(len(sam2_output)):
+        mask = sam2_output[idx]['segmentation']
+        bbox = sam2_output[idx]['bbox']
+        bbox = [int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
+        # change bboxes from xywh to xyxy
+        bbox = [bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]]
+        masks.append(mask)
+        bboxes.append(bbox)
+    return masks, bboxes
+
+
+def remove_unmatched_query_segments(class_predictions, masks, bboxes):
+    # remove class predictions with class -1 and their corresponding segments
+    new_seg_predictions = []
+    new_class_predictions = []
+    for idx in range(len(class_predictions)):
+        if class_predictions[idx] != -1:
+            new_seg_predictions.append(idx)
+            new_class_predictions.append(class_predictions[idx])
+    masks = [mask for i, mask in enumerate(masks) if i in new_seg_predictions]
+    bboxes = [bbox for i, bbox in enumerate(bboxes) if i in new_seg_predictions]
+    return new_class_predictions, masks, bboxes
