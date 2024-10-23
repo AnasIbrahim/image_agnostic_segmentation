@@ -1,93 +1,112 @@
-# DoUnseen: Segment-&-Classify-Anthing for Robotic Grasping
+<h1 align="center">
+<img src="./images/dounseen_logo_10.svg" width="300">
 
-This library contains a pipeline to detect object without training.
+Segment & Classify-Anthing for Robotic Grasping
+</h1><br>
 
-![robot grasping](images/grasping.gif)
+The DoUnseen package segments and classifies any novel object in just few lines of code. Without any training or fine tuning.
 
-The 3 main features of the library:
+Try it on
+<a href="https://huggingface.co/spaces/anas-gouda/dounseen">
+HuggingFace
+  <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="Hugging Face" width="50" height="50">
+</a>
 
-1- Unseen object segmentation
 
-2- object identification to find a specific object or classify all objects
+## Usage modes
 
-3- Suction point calculation
+1. Standalone
+<h1 align="center">
+<img src="./images/standalone.png">
+</h1><br>
 
-They can be use separately or cascaded.
+2. Full Segmentation Pipeline (extension to Segment Anything)
+<h1 align="center">
+<img src="./images/fullpipeline.png">
+</h1><br>
 
-## installing dependencies
+## installation
 
-First, install other dependencies with pip:
-```
-pip install open3d opencv-python argparse torch torchvision
-```
-Second,
-
-if you want to use Segment Anything (SAM) for classification then install it from [here](https://github.com/facebookresearch/segment-anything)
-
-If you want use the Mask R-CNN model from this repository then install detectron2 library from [here](https://detectron2.readthedocs.io/en/latest/tutorials/install.html).
-
-if you use ROS, then install
-```
-sudo apt install ros-"$ROS_DISTRO"-ros-numpy
-```
-
-## Python example
-To test the model directly without ROS
-```
-git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
-cd image_agnostic_segmentation
-wget 'https://drive.usercontent.google.com/download?id=1WxNVDGhhdces-qpgA5bagdi1geVBqYUX&export=download&authuser=0&confirm=t&uuid=e6d22b99-b6cc-4844-a5d3-412d4d6b0f20&at=APZUnTUsRwb78hJd0-B2dL-BHuPe:1705549231572' -c -O 'models.zip'
-unzip models.zip -d models
-cd scripts
-
-# to run the example that run. The examples runs:
-# 1- unseen object segmentation
-# 2- classify all objects
-# 3- find a specific object
-# 4- calculate suction grasp for all objects
-# Note: increas batch size to whatever fits in your GPU
-python segment_image.py --batch-size 200 --compute-suction-pts --detect-all-objects --detect-one-object --use-buffered-gallery
-
-# To run the unseen object segmentation only with RGB images
-python segment_image.py --batch-size  --rgb-image-path RGB_IMAGE_PATH
-
-# To detect a specific object from RGB images from a gallery 
-python segment_image.py --batch-size FIT_IN_GPU --rgb-image-path RGB_IMAGE_PATH --detect-one-object --object-name OBJECT_NAME --gallery_path GALLERY_PATH
-
-# To detect all objects from RGB images with a pre-taken image of the object
-python segment_image.py --batch-size FIT_IN_GPU --rgb-image-path RGB_IMAGE_PATH --detect-all-objects --gallery_path GALLERY_PATH
-
-# To segment an image and compute grasps
-python segment_image.py --batch-size FIT_IN_GPU --rgb-image-path RGB_IMAGE_PATH --depth-image-path DEPTH_IMAGE_PATH --depth-scale DEPTH_SCALE -c-matrix FX 0.0 CX 0.0 FY CY 0.0 0.0 1.0 --compute-suction-pts
+Install dependencies with pip:
+```commandline
+pip install opencv-python torch torchvision
 ```
 
-The examples shows the following scene:
-![grasp computation](images/grasp.gif)
+Install Segment Anything 2
+```commandline
+git clone https://github.com/facebookresearch/sam2.git && cd sam2
+pip install -e .
+```
 
-## ROS
-To install the ROS driver (the ROS package is currently broken):
+Install DoUnseen
+```commandline
+git+https://github.com/AnasIbrahim/image_agnostic_segmentation.git@CASE_release
 ```
-mkdir -p catkin_ws/src
-cd catkin_ws/
-catkin init
-cd src/
-git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
-wget 'https://drive.usercontent.google.com/download?id=1WxNVDGhhdces-qpgA5bagdi1geVBqYUX&export=download&authuser=0&confirm=t&uuid=e6d22b99-b6cc-4844-a5d3-412d4d6b0f20&at=APZUnTUsRwb78hJd0-B2dL-BHuPe:1705549231572' -c -O 'models.zip'
-unzip models.zip -d models
-cd ../../..
-catkin build
-echo "source $(pwd)/devel/setup.bash" >> ~/.bashrc
-source ~/.bashrc
+
+## download pretrained models
+
+TODO: download samv2 and dounseen from huggingface
+
+## How to use 
+importing dounseen and setting up the classifier
+```python
+from dounseen.core import UnseenClassifier
+import dounseen.utils as dounseen_utils
+
+unseen_classifier = UnseenClassifier(
+        model_path="models/dounseen/vit_b_16_epoch_199_augment.pth",
+        gallery_images=None,
+        gallery_buffered_path=None,
+        augment_gallery=False,
+        batch_size=100,
+    )
 ```
-To run ROS example (unseen object segmentation only):
+
+1- Standalone mode
+
+TODO
+
+2- Full segmentation pipeline (extension to Segment-Anything)
+load SAMv2
+```python
+import numpy as np
+from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
+from sam2.build_sam import build_sam2
+from sam2.sam2_image_predictor import SAM2ImagePredictor
+
+model = build_sam2(SAM_CONFIG, SAM_CHECKPOINT, device=DEVICE)
+mask_generators[key] = SAM2AutomaticMaskGenerator(model)
 ```
-roslaunch image_agnostic_segmentation test_example.launch
+load and segment the image
+```python
+image = np.array(image_input.convert("RGB"))
+sam2_result = model.generate(image)
 ```
-Then wait till the segmentation image then grasping image appears (~10 second)
+prepare the output for DoUnseen
+```python
+# prepare sam2 output for the format expected by DoUnseen
+masks = [ann['segmentation'] for ann in sam2_result]
+bboxes = [ann['bbox'] for ann in sam2_result]
+bboxes = [[int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])] for bbox in bboxes]
+# change bboxed from xywh to xyxy
+bboxes = [[bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]] for bbox in bboxes]
+segments = dounseen_utils.get_image_segments_from_binary_masks(image, masks, bboxes)
+```
+To find one object
+```python
+gallery_dict = {'obj_000001': [np.array(object_image.convert("RGB")) for object_image in [object_image1, object_image2, object_image3, object_image4, object_image5, object_image6]]}
+DOUNSEEN_MODEL.update_gallery(gallery_dict)
+matched_query, score = DOUNSEEN_MODEL.find_object(segments, obj_name="obj_000001", method="max")
+matched_query_ann_image = dounseen_utils.draw_segmented_image(image, [masks[matched_query]], [bboxes[matched_query]], classes_predictions=[0], classes_names=["obj_000001"])
+```
+To find all gallery objects
+```python
+# TODO
+```
 
 
 ## DoPose Dataset
-Th unseen object segmentation model was trained with our Dopose data.
+The unseen object segmentation model was trained with our Dopose data.
 The dataset can be downloaded [here](https://zenodo.org/record/6103779).
 The dataset is saved in the [BOP format](https://github.com/thodan/bop_toolkit/blob/master/docs/bop_datasets_format.md).
 It includes multi-view of storage bin (KLT Euro container) and tabletop scenes.
@@ -97,23 +116,26 @@ Samples from the dataset:
 ![DoPose dataset sample](images/DoPose.png)
 
 ## Papers and Citation
-For more details about the DoPose dataset please refer to our DoPose-6D paper ([Arxiv](https://arxiv.org/abs/2204.13613)) and use this citation:
-```
-@INPROCEEDINGS{10069586,
-  author={Gouda, Anas and Ghanem, Abraham and Reining, Christopher},
-  booktitle={2022 21st IEEE International Conference on Machine Learning and Applications (ICMLA)}, 
-  title={DoPose-6D dataset for object segmentation and 6D pose estimation}, 
-  year={2022},
-  volume={},
-  number={},
-  pages={477-483},
-  doi={10.1109/ICMLA55696.2022.00077}}
 
+The latest version of DoUnseen is based on the our paper
+**Learning Embeddings with Centroid Triplet Loss for Object Identification in Robotic Grasping**
+[[Arxiv](https://arxiv.org/abs/2404.06277)].
+The model used in DoUnseen is slightly under-trained compared to the model used in the paper.
+```
+@misc{gouda2024learningembeddingscentroidtriplet,
+      title={Learning Embeddings with Centroid Triplet Loss for Object Identification in Robotic Grasping}, 
+      author={Anas Gouda and Max Schwarz and Christopher Reining and Sven Behnke and Alice Kirchheim},
+      year={2024},
+      eprint={2404.06277},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2404.06277}, 
+}
 ```
 
-For more details about the classification please refer to our DoUnseen paper ([Arvix](https://arxiv.org/abs/2304.02833)).
-This paper gives information about the classificaiton with the siamese network up till [this commit](https://github.com/AnasIbrahim/image_agnostic_segmentation/tree/1b67f0d48479d5362bb19dcc6847e0346aa9234a).
-For any work with the classification after this commit another paper will be added soon.:
+A previous version of this repo was based on our original DoUnseen paper
+([Arvix](https://arxiv.org/abs/2304.02833)).
+The results presented in that paper were barely an improvement due to lack of datasets at that point of time.
 ```
 @misc{gouda2023dounseen,
       title={DoUnseen: Tuning-Free Class-Adaptive Object Detection of Unseen Objects for Robotic Grasping}, 
@@ -125,7 +147,32 @@ For any work with the classification after this commit another paper will be add
 }
 ```
 
+Before zero-shot segmentation models like Segment-Anything came out.
+This repository offered a similar segmentation method that segmented only household objects.
+That was presented and trained using our DoPose dataset.
+([Arxiv](https://arxiv.org/abs/2204.13613)).
+```
+@INPROCEEDINGS{10069586,
+  author={Gouda, Anas and Ghanem, Abraham and Reining, Christopher},
+  booktitle={2022 21st IEEE International Conference on Machine Learning and Applications (ICMLA)}, 
+  title={DoPose-6D dataset for object segmentation and 6D pose estimation}, 
+  year={2022},
+  volume={},
+  number={},
+  pages={477-483},
+  doi={10.1109/ICMLA55696.2022.00077}}
+```
+
+
 ## Latest updates
+
+October 2024: the repo was strongly refactored to be more modular and easier to use
+- DoUnseen can be called using few lines of code
+- using SAMv2 for segmentation
+- Easy installation using pip
+- ROS support is removed
+- Mask R-CNN model for background removal is removed
+- Grasp calculation is removed
 
 Jan 18 2024:
 - New classification models were added using ViT and ResNet50 (paper to be added soon)
