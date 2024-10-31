@@ -94,7 +94,29 @@ class BackgroundFilter:
 
 
 class UnseenClassifier:
+    '''
+    classify unseen objects without requiring any training data.
+    The problem is formulated as an image association between query and gallery images.
+    The gallery images are manually pre-captured images of the objects to be classified.
+    The query images depend on the application:
+        1- Standalone: query images are images of the isolated object to be classified.
+        2- Full segmentation: query images are segments from zero-shot segmentation models like Segment-Anything.
+    Class requires CUDA enabled GPU.
+    '''
     def __init__(self, model_path, gallery_images=None, gallery_buffered_path=None, augment_gallery=False, batch_size=32):
+        '''
+        Arguments:
+          model_path: str
+              path to the object identification model weights
+          gallery_images: str or dict
+              path to the gallery images or dictionary of gallery images (dict format: {obj_name: [list of PIL images]})
+          gallery_buffered_path: str
+              path to the buffered gallery features. If provided, gallery images will not be used.
+          augment_gallery: bool
+              if True, augment gallery images by rotating them 8 times (0, 45, 90, 135, 180, 225, 270, 315 degrees)
+          batch_size: int
+              batch size depends on the GPU memory, default is 32
+        '''
         if torch.cuda.is_available():
             self.device = 'cuda'
         else:
@@ -133,6 +155,9 @@ class UnseenClassifier:
                   "use update_gallery() to update gallery features")
 
     def save_gallery(self, path):
+        '''
+        Save gallery features to a file. The file can be loaded later to avoid recomputing gallery features.
+        '''
         gallery_dict = {'gallery_obj_names': self.gallery_obj_names,
                         'gallery_feats': self.gallery_feats,
                         'gallery_classes': self.gallery_classes}
@@ -143,7 +168,9 @@ class UnseenClassifier:
     def update_gallery(self, gallery_images):
         '''
         Extract gallery features from gallery images
-        :param gallery_images: path or dictionary of gallery images
+        Arguments:
+            gallery_images: str or dict
+                path to the gallery images or dictionary of gallery images (dict format: {obj_name: [list of PIL images]})
         '''
         print("Extracting/updating gallery features")
 
@@ -190,8 +217,20 @@ class UnseenClassifier:
             self.gallery_feats.append(batch_feats)
         self.gallery_feats = torch.cat(self.gallery_feats)
 
-    @torch.no_grad()
     def find_object(self, segments, obj_name, method='max'):
+        '''
+        Find an object in the gallery that matches the query object.
+        The method find only a single instance of the object.
+        The method will always return an object. So the object of interest is assumed to be in the gallery.
+
+        Arguments:
+            segments: list of PIL images
+                list of query images
+            obj_name: str
+                name of the object to be found as in the gallery dictionary
+            method: str
+                method to use for classification. 'max' or 'centroid'
+        '''
         query_feats = self.extract_query_feats(segments)
         obj_feats = self.gallery_feats[np.where(self.gallery_classes == self.gallery_obj_names.index(obj_name))[0]]
         if method == 'centroid':
@@ -212,18 +251,30 @@ class UnseenClassifier:
         else:
             raise Exception("Invalid classificaiton method. Use 'max' or 'centroid'")
 
-        # TODO resolve using both centroid and max
-        # if dimension of matched query is not 1, then choose the first one
-        # this will happen when 2 vectors have the exact same distance, but this would rarely rarely happen
-        #if matched_query.shape[0] > 1:
-        #    calculate using the other method
+        # if dimension of matched query is not 1, then 2 vectors have the exact same distance
+        # this would rarely rarely happen
         # temporary solution just return the first object
         if len(matched_query) > 1:
             matched_query = matched_query[0]
+        # TODO resolve using both centroid and max
+        #if matched_query.shape[0] > 1:
+        #    calculate using the other method
 
         return matched_query, score
 
-    def classify_all_objects(self, segments, threshold=0.6, multi_instances=False):
+    def classify_all_objects(self, segments, threshold=0.6, multi_instance=False):
+        '''
+        Classify all objects in the query images.
+        Only associations with similarity above the threshold are considered.
+
+        Arguments:
+            segments: list of PIL images
+                list of query images
+            threshold: float
+                threshold for similarity between query and gallery objects
+            multi_instance: bool
+                if True, keep multiple instances of the same class in the query images.
+        '''
         query_feats = self.extract_query_feats(segments)
         obj_feats = self.gallery_feats
         # calculate cosine similarity between query and gallery objects using torch cosine_similarity
@@ -237,6 +288,18 @@ class UnseenClassifier:
         pred_classes = self.gallery_classes[matched_queries]
         # set predictions with distance less than threshold to -1
         pred_classes[np.where(pred_scores < threshold)] = -1
+        if not multi_instance:  # keep the highest score for each class
+            # find all unique classes
+            unique_classes = np.unique(pred_classes)
+            # remove -1 from unique classes
+            unique_classes = unique_classes[unique_classes != -1]
+            # for each unique class, keep the highest score and set the rest to -1
+            for unique_class in unique_classes:
+                class_indices = np.where(pred_classes == unique_class)
+                class_scores = pred_scores[class_indices]
+                max_score_index = np.argmax(class_scores)
+                pred_classes[class_indices] = -1
+                pred_classes[class_indices[0][max_score_index]] = unique_class
         return pred_classes, pred_scores
 
     @torch.no_grad()

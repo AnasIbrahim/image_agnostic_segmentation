@@ -16,13 +16,14 @@ torch.manual_seed(0)
 def main():
     parser = argparse.ArgumentParser()
     # input image and gallery
-    parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='./demo/scene_images/example.jpg')
+    parser.add_argument('--rgb-image-path', type=str, help="path rgb to image", default='./demo/scene_images/example.jpg')
     parser.add_argument('--gallery-images-path', type=str, help='path to gallery images folder', default='./demo/objects_gallery')
     # model paths
-    parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model", default='./models/sam2/sam2_hiera_tiny.pt')  # TODO add instruction to download model
-    parser.add_argument("--classification-model-path", type=str, help="path to unseen object classification model", default='./models/dounseen/vit_b_16_epoch_199_augment.pth')
+    parser.add_argument('--sam-model-path', type=str, help="path to unseen object segmentation model", default='./models/sam2/sam2_hiera_tiny.pt')  # TODO add instruction to download model
+    parser.add_argument('--classification-model-path', type=str, help="path to unseen object classification model", default='./models/dounseen/vit_b_16_epoch_199_augment.pth')
     # Classifications parameters
-    parser.add_argument("--classification-threshold", type=float, help="threshold for classification of all objects", default=0.6)
+    parser.add_argument('--classification-threshold', type=float, help="threshold for classification of all objects", default=0.3)
+    parser.add_argument('--multi-instance', action='store_true', help='use multi-instance classification', default=False)
     parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected when detecting one object', default='obj_000001')
     parser.add_argument('--classification-batch-size', type=int, help='batch size for classification', default=80)
 
@@ -75,7 +76,7 @@ def main():
     dounseen.utils.show_wait_destroy("Find a specific object", cv2.resize(matched_query_ann_image, (0, 0), fx=0.5, fy=0.5))
 
     print("Classifying all objects")
-    class_predictions, class_scores = unseen_classifier.classify_all_objects(segments, threshold=args.classification_threshold)
+    class_predictions, class_scores = unseen_classifier.classify_all_objects(segments, threshold=args.classification_threshold, multi_instance=args.multi_instance)
     filtered_class_predictions, filtered_masks, filtered_bboxes = dounseen.utils.remove_unmatched_query_segments(class_predictions, sam2_masks, sam2_bboxes)
 
     classified_image = dounseen.utils.draw_segmented_image(rgb_img, filtered_masks, filtered_bboxes, filtered_class_predictions, classes_names=os.listdir(args.gallery_images_path))
