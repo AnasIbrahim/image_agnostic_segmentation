@@ -16,13 +16,13 @@ torch.manual_seed(0)
 def main():
     parser = argparse.ArgumentParser()
     # input image and gallery
-    parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='./demo/rgb_images/000000.png')
+    parser.add_argument("--rgb-image-path", type=str, help="path rgb to image", default='./demo/scene_images/example.jpg')
     parser.add_argument('--gallery-images-path', type=str, help='path to gallery images folder', default='./demo/objects_gallery')
     # model paths
     parser.add_argument("--sam-model-path", type=str, help="path to unseen object segmentation model", default='./models/sam2/sam2_hiera_tiny.pt')  # TODO add instruction to download model
     parser.add_argument("--classification-model-path", type=str, help="path to unseen object classification model", default='./models/dounseen/vit_b_16_epoch_199_augment.pth')
     # Classifications parameters
-    parser.add_argument("--classification-threshold", type=float, help="threshold for classification of all objects", default=0.5)
+    parser.add_argument("--classification-threshold", type=float, help="threshold for classification of all objects", default=0.6)
     parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected when detecting one object', default='obj_000001')
     parser.add_argument('--classification-batch-size', type=int, help='batch size for classification', default=80)
 
@@ -95,13 +95,14 @@ def create_sam2(sam2_model_path, device):
     sam2 = build_sam2("sam2_hiera_t.yaml", sam2_model_path, device=device)
     mask_generator = SAM2AutomaticMaskGenerator(
         model = sam2,
-        points_per_side=50,   # TODO change to 50
-        points_per_batch=80,
+        points_per_side=20,
+        points_per_batch=20,
         pred_iou_thresh=0.7,
         stability_score_thresh=0.92,
         stability_score_offset=0.7,
-        crop_n_layers=1,
+        crop_n_layers=0,
         box_nms_thresh=0.7,
+        multimask_output=False,
     )
     return mask_generator
 

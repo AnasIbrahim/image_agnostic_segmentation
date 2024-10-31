@@ -105,6 +105,9 @@ To find all gallery objects
 ```
 
 
+For a full example please refer to the [segment_image.py](segment_image.py).
+
+
 ## DoPose Dataset
 The unseen object segmentation model was trained with our Dopose data.
 The dataset can be downloaded [here](https://zenodo.org/record/6103779).

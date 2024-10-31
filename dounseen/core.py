@@ -14,6 +14,8 @@ import torch.nn.functional as F
 
 import utils
 
+IMAGE_SIZE = 384
+
 class BackgroundFilter:
     def __init__(self, maskrcnn_model_path=None, mask_rcnn_confidence=0.7):
         if torch.cuda.is_available():
@@ -109,7 +111,7 @@ class UnseenClassifier:
         self.model_backbone.load_state_dict(model_weights)
         self.model_backbone.to(self.device)
 
-        self.feed_shape = [3, 384, 384]
+        self.feed_shape = [3, IMAGE_SIZE, IMAGE_SIZE]
         self.transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -221,7 +223,7 @@ class UnseenClassifier:
 
         return matched_query, score
 
-    def classify_all_objects(self, segments, threshold=0.6):
+    def classify_all_objects(self, segments, threshold=0.6, multi_instances=False):
         query_feats = self.extract_query_feats(segments)
         obj_feats = self.gallery_feats
         # calculate cosine similarity between query and gallery objects using torch cosine_similarity
@@ -240,8 +242,6 @@ class UnseenClassifier:
     @torch.no_grad()
     def extract_query_feats(self, segments):
         query_imgs = copy.deepcopy(segments)
-        # TODO do i need resize and pad
-        #query_imgs = [utils.resize_and_pad(query_img, (384,384), (255,255,255)) for query_img in query_imgs]
         query_imgs = torch.stack([self.transform(query_img) for query_img in query_imgs])
         query_imgs = query_imgs.to(device=self.device)
         # split image to fit into GPU memory
