@@ -26,6 +26,8 @@ def main():
     parser.add_argument('--multi-instance', action='store_true', help='use multi-instance classification', default=False)
     parser.add_argument('--object-name', type=str, help='name of object (folder) to be detected when detecting one object', default='obj_000001')
     parser.add_argument('--classification-batch-size', type=int, help='batch size for classification', default=80)
+    # Background filter parameters
+    parser.add_argument('--background-filter-model-path', type=str, help='path to background filter model', default='./models/background_filter_Mask-RCNN.pth')
 
     args = parser.parse_args()
 
@@ -52,6 +54,14 @@ def main():
 
     sam2_segmentation_image = dounseen.utils.draw_segmented_image(rgb_img, sam2_masks, sam2_bboxes)
     dounseen.utils.show_wait_destroy("Unseen object segmentation", cv2.resize(sam2_segmentation_image, (0, 0), fx=0.5, fy=0.5))
+
+
+    # filter background using MaskRCNN
+    background_filter = dounseen.core.BackgroundFilter(maskrcnn_model_path=args.background_filter_model_path)
+    sam2_masks, sam2_bboxes = background_filter.filter_background_annotations(rgb_img, sam2_masks, sam2_bboxes)
+
+    sam2_filtered_background_segmentation_image = dounseen.utils.draw_segmented_image(rgb_img, sam2_masks, sam2_bboxes)
+    dounseen.utils.show_wait_destroy("Filtered background", cv2.resize(sam2_filtered_background_segmentation_image, (0, 0), fx=0.5, fy=0.5))
 
     # create DoUnseen classifier
     segments = dounseen.utils.get_image_segments_from_binary_masks(rgb_img, sam2_masks, sam2_bboxes)  # get image segments from rgb image

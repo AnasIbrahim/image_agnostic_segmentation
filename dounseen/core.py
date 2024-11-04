@@ -17,33 +17,24 @@ import utils
 IMAGE_SIZE = 384
 
 class BackgroundFilter:
-    def __init__(self, maskrcnn_model_path=None, mask_rcnn_confidence=0.7):
+    def __init__(self, maskrcnn_model_path=None, mask_rcnn_confidence=0.7, background_filter_threshold=0.9):
         if torch.cuda.is_available():
-            device = 'cuda'
+            self.device = 'cuda'
         else:
             # throw exception no GPU found
             raise Exception("No GPU found, this package is not optimized for CPU.")
 
-        self.predictor = self.make_maskrcnn_predictor(maskrcnn_model_path, mask_rcnn_confidence, device)
+        self.predictor = self.make_maskrcnn_predictor(maskrcnn_model_path, mask_rcnn_confidence)
+        self.background_filter_threshold = background_filter_threshold
 
-    def filter_background_annotations(self, img, masks, bboxes):
-        sam_predictions = {'masks': masks, 'bboxes': bboxes}
+    def filter_background_annotations(self, img, sam_masks, sam_bboxes):
         # get maskrcnn predictions
         detectron2_predictions = self.predictor(img)
-        maskrcnn_predictions = self.formulate_maskrcnn_predictions(detectron2_predictions)
-        sam_predictions = self.filter_background(maskrcnn_predictions, sam_predictions)
-        if self.smallest_segment_size is not None:
-            # filter out small masks
-            filtered_masks = []
-            filtered_bboxes = []
-            for idx, mask in enumerate(sam_predictions['masks']):
-                if np.sum(mask) > self.smallest_segment_size:
-                    filtered_masks.append(mask)
-                    filtered_bboxes.append(sam_predictions['bboxes'][idx])
-            sam_predictions = {'masks': filtered_masks, 'bboxes': filtered_bboxes}
+        maskrcnn_masks, maskrcnn_bboxes = self.formulate_maskrcnn_predictions(detectron2_predictions)
+        sam_predictions = self.remove_background_masks(maskrcnn_masks, maskrcnn_bboxes, sam_masks, sam_bboxes)
         return sam_predictions
 
-    def make_maskrcnn_predictor(self, maskrcnn_model_path, mask_rcnn_confidence=0.7, device='cuda'):
+    def make_maskrcnn_predictor(self, maskrcnn_model_path, mask_rcnn_confidence=0.7):
         from detectron2 import model_zoo
         from detectron2.engine import DefaultPredictor
         from detectron2.config import get_cfg
@@ -58,7 +49,7 @@ class BackgroundFilter:
         cfg.MODEL.ROI_BOX_HEAD.CLS_AGNOSTIC_BBOX_REG = True
         cfg.MODEL.ROI_MASK_HEAD.CLS_AGNOSTIC_MASK = True
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = mask_rcnn_confidence
-        cfg.MODEL.DEVICE = device
+        cfg.MODEL.DEVICE = self.device
         self.predictor = DefaultPredictor(cfg)
         return self.predictor
 
@@ -73,24 +64,22 @@ class BackgroundFilter:
         areas = [np.sum(mask) for mask in masks]
         masks = [mask for _, mask in sorted(zip(areas, masks), key=lambda pair: pair[0], reverse=True)]
         bboxes = [bbox for _, bbox in sorted(zip(areas, bboxes), key=lambda pair: pair[0], reverse=True)]
-        predictions = {'masks': masks, 'bboxes': bboxes}
-        return predictions
+        return masks, bboxes
 
-    def filter_background(self, maskrcnn_predictions, sam_predictions):
+    def remove_background_masks(self, maskrcnn_masks, maskrcnn_bboxes, sam_masks, sam_bboxes):
         # combine maskrcnn predictions in one mask
-        maskrcnn_mask = np.zeros(maskrcnn_predictions['masks'][0].shape, dtype=bool)
-        for mask in maskrcnn_predictions['masks']:
+        maskrcnn_mask = np.zeros(maskrcnn_masks[0].shape, dtype=bool)
+        for mask in maskrcnn_masks:
             maskrcnn_mask = np.logical_or(maskrcnn_mask, mask)
         # filter sam predictions using maskrcnn mask and keep only the ones that are (mostly) inside maskrcnn mask
         filtered_masks = []
         filtered_bboxes = []
-        for idx, mask in enumerate(sam_predictions['masks']):
+        for idx, mask in enumerate(sam_masks):
             # if 90% of sam mask is inside maskrcnn mask, then it is a valid prediction
-            if np.sum(np.logical_and(mask, maskrcnn_mask)) / np.sum(mask) > 0.9:
+            if np.sum(np.logical_and(mask, maskrcnn_mask)) / np.sum(mask) > self.background_filter_threshold:
                 filtered_masks.append(mask)
-                filtered_bboxes.append(sam_predictions['bboxes'][idx])
-        sam_predictions = {'masks': filtered_masks, 'bboxes': filtered_bboxes}
-        return sam_predictions
+                filtered_bboxes.append(sam_bboxes[idx])
+        return filtered_masks, filtered_bboxes
 
 
 class UnseenClassifier:
