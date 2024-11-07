@@ -2,29 +2,27 @@ import copy
 import glob
 import os
 import numpy as np
-import cv2
 import torch
 from PIL import Image
 import pickle
-import pycocotools
+import pkg_resources
 
 import torchvision
 from torchvision import transforms
-import torch.nn.functional as F
-
-import utils
 
 IMAGE_SIZE = 384
 
 class BackgroundFilter:
-    def __init__(self, maskrcnn_model_path=None, mask_rcnn_confidence=0.7, background_filter_threshold=0.9):
+    def __init__(self, maskrcnn_confidence=0.7, background_filter_threshold=0.9):
         if torch.cuda.is_available():
             self.device = 'cuda'
         else:
             # throw exception no GPU found
             raise Exception("No GPU found, this package is not optimized for CPU.")
 
-        self.predictor = self.make_maskrcnn_predictor(maskrcnn_model_path, mask_rcnn_confidence)
+        maskrcnn_model_path = pkg_resources.resource_filename('dounseen', '../models/background_filtering/background_filter_Mask-RCNN.pth')
+
+        self.predictor = self.make_maskrcnn_predictor(maskrcnn_model_path, maskrcnn_confidence)
         self.background_filter_threshold = background_filter_threshold
 
     def filter_background_annotations(self, img, sam_masks, sam_bboxes):
@@ -34,7 +32,7 @@ class BackgroundFilter:
         sam_predictions = self.remove_background_masks(maskrcnn_masks, maskrcnn_bboxes, sam_masks, sam_bboxes)
         return sam_predictions
 
-    def make_maskrcnn_predictor(self, maskrcnn_model_path, mask_rcnn_confidence=0.7):
+    def make_maskrcnn_predictor(self, maskrcnn_model_path, maskrcnn_confidence=0.7):
         from detectron2 import model_zoo
         from detectron2.engine import DefaultPredictor
         from detectron2.config import get_cfg
@@ -48,7 +46,7 @@ class BackgroundFilter:
         cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 1
         cfg.MODEL.ROI_BOX_HEAD.CLS_AGNOSTIC_BBOX_REG = True
         cfg.MODEL.ROI_MASK_HEAD.CLS_AGNOSTIC_MASK = True
-        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = mask_rcnn_confidence
+        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = maskrcnn_confidence
         cfg.MODEL.DEVICE = self.device
         self.predictor = DefaultPredictor(cfg)
         return self.predictor
@@ -92,11 +90,9 @@ class UnseenClassifier:
         2- Full segmentation: query images are segments from zero-shot segmentation models like Segment-Anything.
     Class requires CUDA enabled GPU.
     '''
-    def __init__(self, model_path, gallery_images=None, gallery_buffered_path=None, augment_gallery=False, batch_size=32):
+    def __init__(self, gallery_images=None, gallery_buffered_path=None, augment_gallery=False, batch_size=32):
         '''
         Arguments:
-          model_path: str
-              path to the object identification model weights
           gallery_images: str or dict
               path to the gallery images or dictionary of gallery images (dict format: {obj_name: [list of PIL images]})
           gallery_buffered_path: str
@@ -115,7 +111,8 @@ class UnseenClassifier:
         self.augment_gallery = augment_gallery
         self.batch_size = batch_size
         # load model weights
-        model_weights = torch.load(model_path, map_location=self.device)
+        classification_model_path = pkg_resources.resource_filename('dounseen', '../models/dounseen/vit_b_16_epoch_199_augment.pth')
+        model_weights = torch.load(classification_model_path, map_location=self.device)
         # TODO load SWAG model without downloading
         # load IMAGENET1K_SWAG_E2E_V1
         self.model_backbone = torchvision.models.vit_b_16(weights='IMAGENET1K_SWAG_E2E_V1')
