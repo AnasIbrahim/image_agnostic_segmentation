@@ -159,22 +159,24 @@ Samples from the dataset:
 
 The latest version of DoUnseen is highly based on the our paper
 **Learning Embeddings with Centroid Triplet Loss for Object Identification in Robotic Grasping**
-[[Arxiv](https://arxiv.org/abs/2404.06277)].
+[[Arxiv](https://arxiv.org/abs/2404.06277)]
+[[IEEE](https://ieeexplore.ieee.org/document/10711720)].
 The model used in DoUnseen is slightly under-trained compared to the model used in the paper.
 ```
-@misc{gouda2024learningembeddingscentroidtriplet,
-      title={Learning Embeddings with Centroid Triplet Loss for Object Identification in Robotic Grasping}, 
-      author={Anas Gouda and Max Schwarz and Christopher Reining and Sven Behnke and Alice Kirchheim},
-      year={2024},
-      eprint={2404.06277},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2404.06277}, 
-}
+@INPROCEEDINGS{10711720,
+  author={Gouda, Anas and Schwarz, Max and Reining, Christopher and Behnke, Sven and Kirchheim, Alice},
+  booktitle={2024 IEEE 20th International Conference on Automation Science and Engineering (CASE)},
+  title={Learning Embeddings with Centroid Triplet Loss for Object Identification in Robotic Grasping},
+  year={2024},
+  volume={},
+  number={},
+  pages={3577-3583},
+  keywords={Training;Location awareness;Image segmentation;Accuracy;Pipelines;Object detection;Object segmentation;Market research;Object recognition;Proposals},
+  doi={10.1109/CASE59546.2024.10711720}}
 ```
 
 A previous version of this repo was based on our original DoUnseen paper
-([Arvix](https://arxiv.org/abs/2304.02833)).
+[[Arvix](https://arxiv.org/abs/2304.02833)].
 The results presented in that paper were barely an improvement due to lack of datasets at that point of time.
 ```
 @misc{gouda2023dounseen,
@@ -190,7 +192,8 @@ The results presented in that paper were barely an improvement due to lack of da
 Before zero-shot segmentation models like Segment-Anything came out.
 This repository offered a similar segmentation method that segmented only household objects.
 That was presented and trained using our DoPose dataset.
-([Arxiv](https://arxiv.org/abs/2204.13613)).
+[[Arxiv](https://arxiv.org/abs/2204.13613)]
+[[IEEE](https://ieeexplore.ieee.org/document/10069586)]
 ```
 @INPROCEEDINGS{10069586,
   author={Gouda, Anas and Ghanem, Abraham and Reining, Christopher},

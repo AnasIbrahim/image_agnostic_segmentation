@@ -13,16 +13,22 @@ from torchvision import transforms
 IMAGE_SIZE = 384
 
 class BackgroundFilter:
-    def __init__(self, maskrcnn_confidence=0.7, background_filter_threshold=0.9):
+    def __init__(self, maskrcnn_model_path='DEFAULT', maskrcnn_confidence=0.7, background_filter_threshold=0.9):
         if torch.cuda.is_available():
             self.device = 'cuda'
         else:
             # throw exception no GPU found
             raise Exception("No GPU found, this package is not optimized for CPU.")
 
-        maskrcnn_model_path = pkg_resources.resource_filename('dounseen', '../models/background_filtering/background_filter_Mask-RCNN.pth')
+        if maskrcnn_model_path == 'DEFAULT':
+            model_path = pkg_resources.resource_filename('dounseen', '../models/background_filtering/background_filter_Mask-RCNN.pth')
+            # check if model file exists
+            if not os.path.exists(model_path):
+                raise Exception("Background filter model file not found in the default path. Was the model downloaded from HuggingFace?")
+        else:
+            model_path = maskrcnn_model_path
 
-        self.predictor = self.make_maskrcnn_predictor(maskrcnn_model_path, maskrcnn_confidence)
+        self.predictor = self.make_maskrcnn_predictor(model_path, maskrcnn_confidence)
         self.background_filter_threshold = background_filter_threshold
 
     def filter_background_annotations(self, img, sam_masks, sam_bboxes):
@@ -90,7 +96,7 @@ class UnseenClassifier:
         2- Full segmentation: query images are segments from zero-shot segmentation models like Segment-Anything.
     Class requires CUDA enabled GPU.
     '''
-    def __init__(self, gallery_images=None, gallery_buffered_path=None, augment_gallery=False, batch_size=32):
+    def __init__(self, classification_model_path='DEFAULT', gallery_images=None, gallery_buffered_path=None, augment_gallery=False, batch_size=32):
         '''
         Arguments:
           gallery_images: str or dict
@@ -111,8 +117,14 @@ class UnseenClassifier:
         self.augment_gallery = augment_gallery
         self.batch_size = batch_size
         # load model weights
-        classification_model_path = pkg_resources.resource_filename('dounseen', '../models/dounseen/vit_b_16_epoch_199_augment.pth')
-        model_weights = torch.load(classification_model_path, map_location=self.device)
+        if classification_model_path == 'DEFAULT':
+            model_path = pkg_resources.resource_filename('dounseen', '../models/dounseen/vit_b_16_epoch_199_augment.pth')
+            # check if model file exists
+            if not os.path.exists(model_path):
+                raise Exception("Classification model file not found in the default path. Was the model downloaded from HuggingFace?")
+        else:
+            model_path = classification_model_path
+        model_weights = torch.load(model_path, map_location=self.device)
         # TODO load SWAG model without downloading
         # load IMAGENET1K_SWAG_E2E_V1
         self.model_backbone = torchvision.models.vit_b_16(weights='IMAGENET1K_SWAG_E2E_V1')

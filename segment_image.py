@@ -61,19 +61,20 @@ def main():
     sam2_masks, sam2_bboxes = dounseen.utils.reformat_sam2_output(sam2_output)
 
     sam2_segmentation_image = dounseen.utils.draw_segmented_image(rgb_img, sam2_masks, sam2_bboxes)
-    dounseen.utils.show_wait_destroy("Unseen object segmentation", cv2.resize(sam2_segmentation_image, (0, 0), fx=0.5, fy=0.5))
+    dounseen.utils.show_wait_destroy("Unseen object segmentation", cv2.resize(sam2_segmentation_image, (0, 0), fx=0.25, fy=0.25))
 
 
     # filter background using MaskRCNN
-    background_filter = dounseen.core.BackgroundFilter()
+    background_filter = dounseen.core.BackgroundFilter(maskrcnn_model_path='DEFAULT')
     sam2_masks, sam2_bboxes = background_filter.filter_background_annotations(rgb_img, sam2_masks, sam2_bboxes)
 
     sam2_filtered_background_segmentation_image = dounseen.utils.draw_segmented_image(rgb_img, sam2_masks, sam2_bboxes)
-    dounseen.utils.show_wait_destroy("Filtered background", cv2.resize(sam2_filtered_background_segmentation_image, (0, 0), fx=0.5, fy=0.5))
+    dounseen.utils.show_wait_destroy("Filtered background", cv2.resize(sam2_filtered_background_segmentation_image, (0, 0), fx=0.25, fy=0.25))
 
     # create DoUnseen classifier
     segments = dounseen.utils.get_image_segments_from_binary_masks(rgb_img, sam2_masks, sam2_bboxes)  # get image segments from rgb image
     unseen_classifier = dounseen.core.UnseenClassifier(
+        classification_model_path='DEFAULT',
         gallery_images=args.gallery_images_path,
         gallery_buffered_path=None,
         augment_gallery=False,
@@ -90,7 +91,7 @@ def main():
                                                                   [sam2_bboxes[matched_query]], classes_predictions=[0],
                                                                   classes_names=["obj_000001"])
     matched_query_ann_image = cv2.cvtColor(matched_query_ann_image, cv2.COLOR_RGB2BGR)
-    dounseen.utils.show_wait_destroy("Find a specific object", cv2.resize(matched_query_ann_image, (0, 0), fx=0.5, fy=0.5))
+    dounseen.utils.show_wait_destroy("Find a specific object", cv2.resize(matched_query_ann_image, (0, 0), fx=0.25, fy=0.25))
 
     print("Classifying all objects")
     class_predictions, class_scores = unseen_classifier.classify_all_objects(segments, threshold=args.classification_threshold, multi_instance=args.multi_instance)
@@ -98,7 +99,7 @@ def main():
 
     classified_image = dounseen.utils.draw_segmented_image(rgb_img, filtered_masks, filtered_bboxes, filtered_class_predictions, classes_names=os.listdir(args.gallery_images_path))
     classified_image = cv2.cvtColor(classified_image, cv2.COLOR_RGB2BGR)
-    dounseen.utils.show_wait_destroy("Classify all objects from gallery", cv2.resize(classified_image, (0, 0), fx=0.5, fy=0.5))
+    dounseen.utils.show_wait_destroy("Classify all objects from gallery", cv2.resize(classified_image, (0, 0), fx=0.25, fy=0.25))
 
 
 if __name__ == '__main__':
