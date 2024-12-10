@@ -40,7 +40,7 @@ git clone https://github.com/facebookresearch/sam2.git && cd sam2 && pip install
 
 Install DoUnseen:
 ```commandline
-git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
+git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git && cd image_agnostic_segmentation
 pip install -e .
 ```
 
