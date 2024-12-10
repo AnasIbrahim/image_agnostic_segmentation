@@ -99,14 +99,16 @@ class UnseenClassifier:
     def __init__(self, classification_model_path='DEFAULT', gallery_images=None, gallery_buffered_path=None, augment_gallery=False, batch_size=32):
         '''
         Arguments:
-          gallery_images: str or dict
-              path to the gallery images or dictionary of gallery images (dict format: {obj_name: [list of PIL images]})
-          gallery_buffered_path: str
-              path to the buffered gallery features. If provided, gallery images will not be used.
-          augment_gallery: bool
-              if True, augment gallery images by rotating them 8 times (0, 45, 90, 135, 180, 225, 270, 315 degrees)
-          batch_size: int
-              batch size depends on the GPU memory, default is 32
+            classification_model_path: str
+                  path to the classification model. If 'DEFAULT', the default model will be loaded.
+            gallery_images: str or dict
+                path to the gallery images or dictionary of gallery images (dict format: {obj_name: [list of PIL images]})
+            gallery_buffered_path: str
+                path to the buffered gallery features. If provided, gallery images will not be used.
+            augment_gallery: bool
+                if True, augment gallery images by rotating them 8 times (0, 45, 90, 135, 180, 225, 270, 315 degrees)
+            batch_size: int
+                batch size depends on the GPU memory, default is 32
         '''
         if torch.cuda.is_available():
             self.device = 'cuda'

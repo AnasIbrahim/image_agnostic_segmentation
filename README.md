@@ -40,7 +40,8 @@ git clone https://github.com/facebookresearch/sam2.git && cd sam2 && pip install
 
 Install DoUnseen:
 ```commandline
-pip install git+https://github.com/AnasIbrahim/image_agnostic_segmentation.git
+git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git
+pip install -e .
 ```
 
 Download the pretrained models from HuggingFace using git LFS:
@@ -57,7 +58,7 @@ from dounseen.core import UnseenClassifier
 import dounseen.utils as dounseen_utils
 
 unseen_classifier = dounseen.core.UnseenClassifier(
-  gallery_images=None,  # Can be setup later using update_gallery()
+  gallery_images=None,  # Can be initialized later using update_gallery()
   gallery_buffered_path=None,
   augment_gallery=False,
   batch_size=80,
@@ -83,6 +84,8 @@ class_predictions, class_scores = unseen_classifier.classify_all_objects(query_i
 
 load SAM 2 and generate the masks.
 ```python
+from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
+
 torch.autocast("cuda", dtype=torch.bfloat16).__enter__()
 # turn on tfloat32 for Ampere GPUs (https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices)
 if torch.cuda.get_device_properties(0).major >= 8:
@@ -116,7 +119,7 @@ sam2_masks, sam2_bboxes = dounseen.utils.reformat_sam2_output(sam2_output)
 If you want to remove the background segmentation masks, you can use the BackgroundFilter class.
 Most of the time, using this background filter is not necessary.
 ```python
-background_filter = dounseen.core.BackgroundFilter()
+background_filter = dounseen.core.BackgroundFilter(maskrcnn_model_path='DEFAULT')
 sam2_masks, sam2_bboxes = background_filter.filter_background_annotations(rgb_img, sam2_masks, sam2_bboxes)
 ```
 
