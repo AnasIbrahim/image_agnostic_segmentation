@@ -107,14 +107,16 @@ def reformat_sam2_output(sam2_output):
     return masks, bboxes
 
 
-def remove_unmatched_query_segments(class_predictions, masks, bboxes):
+def remove_unmatched_query_segments(class_predictions, class_scores, masks, bboxes):
     # remove class predictions with class -1 and their corresponding segments
     new_seg_predictions = []
     new_class_predictions = []
+    new_class_scores = []
     for idx in range(len(class_predictions)):
         if class_predictions[idx] != -1:
             new_seg_predictions.append(idx)
             new_class_predictions.append(class_predictions[idx])
+            new_class_scores.append(class_scores[idx])
     masks = [mask for i, mask in enumerate(masks) if i in new_seg_predictions]
     bboxes = [bbox for i, bbox in enumerate(bboxes) if i in new_seg_predictions]
-    return new_class_predictions, masks, bboxes
+    return new_class_predictions, new_class_scores ,masks, bboxes

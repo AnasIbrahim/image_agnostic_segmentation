@@ -95,7 +95,7 @@ def main():
 
     print("Classifying all objects")
     class_predictions, class_scores = unseen_classifier.classify_all_objects(segments, threshold=args.classification_threshold, multi_instance=args.multi_instance)
-    filtered_class_predictions, filtered_masks, filtered_bboxes = dounseen.utils.remove_unmatched_query_segments(class_predictions, sam2_masks, sam2_bboxes)
+    filtered_class_predictions, filtered_class_scores, filtered_masks, filtered_bboxes = dounseen.utils.remove_unmatched_query_segments(class_predictions, class_scores, sam2_masks, sam2_bboxes)
 
     classified_image = dounseen.utils.draw_segmented_image(rgb_img, filtered_masks, filtered_bboxes, filtered_class_predictions, classes_names=os.listdir(args.gallery_images_path))
     classified_image = cv2.cvtColor(classified_image, cv2.COLOR_RGB2BGR)

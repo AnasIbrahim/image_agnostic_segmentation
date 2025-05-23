@@ -126,7 +126,7 @@ class UnseenClassifier:
                 raise Exception("Classification model file not found in the default path. Was the model downloaded from HuggingFace?")
         else:
             model_path = classification_model_path
-        model_weights = torch.load(model_path, map_location=self.device)
+        model_weights = torch.load(model_path, map_location=self.device, weights_only=False)
         # TODO load SWAG model without downloading
         # load IMAGENET1K_SWAG_E2E_V1
         self.model_backbone = torchvision.models.vit_b_16(weights='IMAGENET1K_SWAG_E2E_V1')
