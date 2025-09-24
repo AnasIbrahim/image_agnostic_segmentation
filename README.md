@@ -38,6 +38,11 @@ Please install SAM2 it as follows:
 git clone https://github.com/facebookresearch/sam2.git && cd sam2 && pip install -e .
 ```
 
+Install DoUnseen dependencies:
+```commandline
+pip install huggingface-hub
+```
+
 Install DoUnseen:
 ```commandline
 git clone https://github.com/AnasIbrahim/image_agnostic_segmentation.git && cd image_agnostic_segmentation

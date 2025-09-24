@@ -217,7 +217,7 @@ class UnseenClassifier:
             self.gallery_feats.append(batch_feats)
         self.gallery_feats = torch.cat(self.gallery_feats)
 
-    def find_object(self, segments, obj_name, method='max'):
+    def find_object(self, segments, obj_name, method='centroid'):
         '''
         Find an object in the gallery that matches the query object.
         The method find only a single instance of the object.
@@ -231,25 +231,17 @@ class UnseenClassifier:
             method: str
                 method to use for classification. 'max' or 'centroid'
         '''
+        if method not in ['max', 'centroid']:
+            raise Exception("Invalid classification method. Use 'max' or 'centroid'")
         query_feats = self.extract_query_feats(segments)
         obj_feats = self.gallery_feats[np.where(self.gallery_classes == self.gallery_obj_names.index(obj_name))[0]]
+        # calculate cosine similarity between query and gallery objects using torch cdist
+        dist_matrix = torch.nn.functional.cosine_similarity(query_feats.unsqueeze(1), obj_feats.unsqueeze(0), dim=2)
         if method == 'centroid':
-            # calculate centroid of gallery object features
-            obj_feats = torch.mean(obj_feats, dim=0)
-            # calculate cosine similarity between query and gallery objects using torch cdist
-            dist_matrix = torch.nn.functional.cosine_similarity(query_feats, obj_feats.unsqueeze(0), dim=1)
-            # find the id of the highest similarity from the 1-D array
-            matched_query = torch.where(dist_matrix == torch.max(dist_matrix))[0]
-            score = torch.max(dist_matrix)
-        elif method == 'max':
-            # calculate cosine similarity between query and gallery objects using torch cdist
-            dist_matrix = torch.nn.functional.cosine_similarity(query_feats.unsqueeze(0), obj_feats.unsqueeze(1), dim=2)
-            dist_matrix = dist_matrix.transpose(0, 1)
-            # find the id of the biggest similarity from the 2D array
-            matched_query = torch.where(dist_matrix == torch.max(dist_matrix))[0]
-            score = torch.max(dist_matrix)
-        else:
-            raise Exception("Invalid classificaiton method. Use 'max' or 'centroid'")
+            dist_matrix = torch.mean(dist_matrix, dim=1)  # average over gallery objects to get 1-D array
+        # find the id of the highest similarity from the 1-D array
+        matched_query = torch.where(dist_matrix == torch.max(dist_matrix))[0]
+        score = torch.max(dist_matrix)
 
         # if dimension of matched query is not 1, then 2 vectors have the exact same distance
         # this would rarely rarely happen
@@ -262,7 +254,7 @@ class UnseenClassifier:
 
         return matched_query, score
 
-    def classify_all_objects(self, segments, threshold=0.6, multi_instance=False):
+    def classify_all_objects(self, segments, threshold=0.6, multi_instance=False, method='centroid'):
         '''
         Classify all objects in the query images.
         Only associations with similarity above the threshold are considered.
@@ -275,19 +267,35 @@ class UnseenClassifier:
             multi_instance: bool
                 if True, keep multiple instances of the same class in the query images.
         '''
+        if method not in ['max', 'centroid']:
+            raise Exception("Invalid classification method. Use 'max' or 'centroid'")
         query_feats = self.extract_query_feats(segments)
         obj_feats = self.gallery_feats
         # calculate cosine similarity between query and gallery objects using torch cosine_similarity
-        dist_matrix = torch.nn.functional.cosine_similarity(query_feats.unsqueeze(0), obj_feats.unsqueeze(1), dim=2)
-        dist_matrix = dist_matrix.transpose(0, 1)
-        # find the closest gallery object for each query object
-        matches = torch.max(dist_matrix, dim=1)
-        matched_queries = matches.indices.detach().cpu().numpy()
-        pred_scores = matches.values.detach().cpu().numpy()
-        # convert matched queries to gallery classes
-        pred_classes = self.gallery_classes[matched_queries]
+        dist_matrix = torch.nn.functional.cosine_similarity(query_feats.unsqueeze(1), obj_feats.unsqueeze(0), dim=2)
+        if method == 'centroid':
+            # get the mean across gallery objects for each query object - find the indices using self.gallery_classes
+            # create a new matrix of size (num_query, num_classes) where each element is the mean of the distances
+            num_classes = len(self.gallery_obj_names)
+            new_dist_matrix = torch.zeros((dist_matrix.shape[0], num_classes), device=self.device)
+            for class_id in range(num_classes):
+                class_indices = np.where(self.gallery_classes == class_id)[0]
+                if len(class_indices) > 0:
+                    new_dist_matrix[:, class_id] = torch.mean(dist_matrix[:, class_indices], dim=1)
+            dist_matrix = new_dist_matrix
+            pred_classes = torch.argmax(dist_matrix, dim=1).detach().cpu().numpy()
+            pred_scores = torch.max(dist_matrix, dim=1).values.detach().cpu().numpy()
+        elif method == 'max':
+            # find the closest gallery object for each query object
+            matches = torch.max(dist_matrix, dim=1)
+            matched_queries = matches.indices.detach().cpu().numpy()
+            pred_scores = matches.values.detach().cpu().numpy()
+            # convert matched queries to gallery classes
+            pred_classes = self.gallery_classes[matched_queries]
+
         # set predictions with distance less than threshold to -1
         pred_classes[np.where(pred_scores < threshold)] = -1
+
         if not multi_instance:  # keep the highest score for each class
             # find all unique classes
             unique_classes = np.unique(pred_classes)
