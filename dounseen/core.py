@@ -217,7 +217,7 @@ class UnseenClassifier:
             self.gallery_feats.append(batch_feats)
         self.gallery_feats = torch.cat(self.gallery_feats)
 
-    def find_object(self, segments, obj_name, method='centroid'):
+    def find_object(self, segments, obj_name, method='max'):
         '''
         Find an object in the gallery that matches the query object.
         The method find only a single instance of the object.
@@ -254,7 +254,7 @@ class UnseenClassifier:
 
         return matched_query, score
 
-    def classify_all_objects(self, segments, threshold=0.6, multi_instance=False, method='centroid'):
+    def classify_all_objects(self, segments, threshold=0.6, multi_instance=False, method='max'):
         '''
         Classify all objects in the query images.
         Only associations with similarity above the threshold are considered.

@@ -85,7 +85,7 @@ def main():
     #unseen_classifier.save_gallery(PATH)
 
     # find one object
-    matched_query, score = unseen_classifier.find_object(segments, obj_name=args.object_name, method="centroid")
+    matched_query, score = unseen_classifier.find_object(segments, obj_name=args.object_name, method="max")
     matched_query_ann_image = dounseen.utils.draw_segmented_image(rgb_img,
                                                                   [sam2_masks[matched_query]],
                                                                   [sam2_bboxes[matched_query]], classes_predictions=[0],
@@ -94,7 +94,7 @@ def main():
     dounseen.utils.show_wait_destroy("Find a specific object", cv2.resize(matched_query_ann_image, (0, 0), fx=0.25, fy=0.25))
 
     print("Classifying all objects")
-    class_predictions, class_scores = unseen_classifier.classify_all_objects(segments, threshold=args.classification_threshold, multi_instance=args.multi_instance, method="centroid")
+    class_predictions, class_scores = unseen_classifier.classify_all_objects(segments, threshold=args.classification_threshold, multi_instance=args.multi_instance, method="max")
     filtered_class_predictions, filtered_class_scores, filtered_masks, filtered_bboxes = dounseen.utils.remove_unmatched_query_segments(class_predictions, class_scores, sam2_masks, sam2_bboxes)
 
     classified_image = dounseen.utils.draw_segmented_image(rgb_img, filtered_masks, filtered_bboxes, filtered_class_predictions, classes_names=os.listdir(args.gallery_images_path))
