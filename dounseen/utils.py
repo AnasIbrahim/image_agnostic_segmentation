@@ -113,10 +113,11 @@ def remove_unmatched_query_segments(class_predictions, class_scores, masks, bbox
     new_class_predictions = []
     new_class_scores = []
     for idx in range(len(class_predictions)):
-        if class_predictions[idx] != -1:
+        class_id = int(class_predictions[idx])
+        if class_id != -1:
             new_seg_predictions.append(idx)
-            new_class_predictions.append(class_predictions[idx])
-            new_class_scores.append(class_scores[idx])
+            new_class_predictions.append(class_id)
+            new_class_scores.append(float(class_scores[idx]))
     masks = [mask for i, mask in enumerate(masks) if i in new_seg_predictions]
     bboxes = [bbox for i, bbox in enumerate(bboxes) if i in new_seg_predictions]
     return new_class_predictions, new_class_scores ,masks, bboxes
