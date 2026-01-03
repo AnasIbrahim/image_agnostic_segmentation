@@ -155,7 +155,7 @@ filtered_class_predictions, filtered_masks, filtered_bboxes = dounseen.utils.rem
 
 ## DoPose Dataset
 The unseen object segmentation model used for the background filtering was trained using NVIDIA Falling-Things Dataset with our Dopose data.
-The DoPose dataset can be downloaded [here](https://zenodo.org/record/6103779).
+The DoPose dataset can be downloaded [here](https://huggingface.co/datasets/anas-gouda/DoPose).
 The dataset is saved in the [BOP format](https://github.com/thodan/bop_toolkit/blob/master/docs/bop_datasets_format.md).
 It includes multi-view of storage bin (KLT Euro container) and tabletop scenes.
 The annotations include RGB and depth images, 6D pose of each object, segmentation masks, COCO json annotations. Also the dataset includes camera transformations between different views of the same scene.
